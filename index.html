@@ -1,0 +1,853 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PII Redaction Tool — Ankan Basu | Scalar Labs Assignment</title>
+<meta name="description" content="Production-grade PII redaction engine using hybrid regex + spaCy NER. 97.1% F1 on hand-labeled evaluation. Built by Ankan Basu.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0a0a0f;--surface:#12121a;--glass:rgba(255,255,255,.04);
+  --glass-border:rgba(255,255,255,.08);--glass-hover:rgba(255,255,255,.07);
+  --text:#e8e8f0;--text-dim:#8888a0;--text-bright:#fff;
+  --accent-yellow:#FFD400;--accent-mint:#00ffaa;--accent-sky:#58a6ff;
+  --accent-lavender:#c4a6ff;--accent-coral:#ff6b8a;--accent-pink:#ff8ec4;
+  --brutal-shadow:10px 10px 0px #000;
+  --brutal-shadow-lg:20px 20px 0px #000;
+  --brutal-shadow-color:6px 6px 0px;
+  --border:3px solid rgba(255,255,255,.2);
+  --border-hard:3px solid rgba(255,255,255,.4);
+  --radius:4px;
+  --font-display:'Space Grotesk',sans-serif;
+  --font-mono:'JetBrains Mono',monospace;
+  --font-body:'Inter',sans-serif;
+  --perspective:1200px;
+}
+html{scroll-behavior:smooth}
+body{
+  font-family:var(--font-body);color:var(--text);background:var(--bg);
+  line-height:1.6;overflow-x:hidden;
+}
+body::before{
+  content:'';position:fixed;inset:0;z-index:-2;
+  background:
+    radial-gradient(ellipse 80% 60% at 20% 10%,rgba(0,255,170,.04),transparent),
+    radial-gradient(ellipse 60% 50% at 80% 80%,rgba(88,166,255,.04),transparent),
+    radial-gradient(ellipse 70% 40% at 50% 50%,rgba(196,166,255,.03),transparent);
+}
+body::after{
+  content:'';position:fixed;inset:0;z-index:-1;
+  background-image:
+    linear-gradient(rgba(255,255,255,.03) 2px,transparent 2px),
+    linear-gradient(90deg,rgba(255,255,255,.03) 2px,transparent 2px);
+  background-size:40px 40px;
+}
+h1,h2,h3,h4{font-family:var(--font-display);font-weight:700;color:var(--text-bright)}
+code,.mono{font-family:var(--font-mono)}
+::selection{background:var(--accent-mint);color:#000}
+
+/* GLASS CARD */
+.glass{
+  background:var(--glass);
+  border:var(--border);
+  border-radius:var(--radius);
+  backdrop-filter:blur(24px) saturate(1.4);
+  -webkit-backdrop-filter:blur(24px) saturate(1.4);
+}
+.glass-hard{
+  background:#12121a;
+  border:var(--border-hard);
+  border-radius:var(--radius);
+  box-shadow:var(--brutal-shadow);
+}
+
+/* 3D CARD */
+.card-3d{
+  perspective:1400px;
+  transform-style:preserve-3d;
+}
+.card-3d-inner{
+  transition:transform .4s cubic-bezier(.22,.68,0,1.2);
+  transform-style:preserve-3d;
+  height: 100%;
+}
+.card-3d:hover .card-3d-inner{
+  transform:rotateY(-6deg) rotateX(6deg) translateZ(16px);
+}
+.card-3d-inner > * {
+  transform: translateZ(10px);
+  transition: transform .4s cubic-bezier(.22,.68,0,1.2);
+}
+.card-3d:hover .card-3d-inner > * {
+  transform: translateZ(36px);
+}
+
+/* BRUTAL BTN */
+.btn{
+  display:inline-flex;align-items:center;gap:7px;
+  font-family:var(--font-mono);font-weight:700;font-size:12px;
+  text-transform:uppercase;text-decoration:none;letter-spacing:.04em;
+  padding:11px 20px;border:3px solid rgba(255,255,255,.4);border-radius:var(--radius);
+  background:#0a0a0f;color:var(--text-bright);cursor:pointer;
+  box-shadow:6px 6px 0px #000;
+  transition:transform .12s,box-shadow .12s;
+  white-space:nowrap;position:relative;overflow:hidden;
+  transform:rotate(-1deg);
+}
+.btn::after{
+  content:'';position:absolute;inset:0;background:linear-gradient(135deg,rgba(255,255,255,.06),transparent);
+  pointer-events:none;
+}
+.btn:hover{transform:translate(2px,2px) rotate(0deg);box-shadow:4px 4px 0px #000}
+.btn:active{transform:translate(6px,6px) rotate(0deg);box-shadow:0 0 0 #000}
+.btn--accent{background:rgba(0,255,170,.12);border-color:rgba(0,255,170,.3);color:var(--accent-mint)}
+.btn--yellow{background:rgba(255,212,0,.15);border-color:rgba(255,212,0,.4);color:var(--accent-yellow)}
+.btn--coral{background:rgba(255,107,138,.1);border-color:rgba(255,107,138,.3);color:var(--accent-coral)}
+
+/* PILL */
+.pill{
+  display:inline-block;font-family:var(--font-mono);font-weight:700;font-size:10px;
+  text-transform:uppercase;padding:3px 10px;border-radius:6px;
+  letter-spacing:.06em;
+}
+
+/* SECTION */
+.section-tag{
+  display:inline-flex;align-items:center;gap:10px;
+  margin-bottom:28px;
+}
+.section-num{
+  width:40px;height:40px;border-radius:var(--radius);
+  display:flex;align-items:center;justify-content:center;
+  font-family:var(--font-mono);font-weight:700;font-size:16px;
+  border:3px solid rgba(255,255,255,.4);
+  box-shadow:4px 4px 0 #000;
+  transform:rotate(-4deg);
+}
+.section-label{
+  font-family:var(--font-display);font-weight:700;font-size:clamp(22px,3vw,30px);
+  text-transform:uppercase;letter-spacing:-.01em;
+}
+
+/* NAV */
+nav{
+  position:sticky;top:0;z-index:100;
+  background:#0a0a0f;
+  border-bottom:3px solid rgba(255,255,255,.2);
+  box-shadow:0 6px 0px rgba(0,0,0,0.8);
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 32px;height:58px;
+}
+nav .logo{font-family:var(--font-display);font-weight:700;font-size:18px;display:flex;align-items:center;gap:10px;color:var(--text-bright)}
+nav .logo .logo-dot{
+  width:10px;height:10px;border-radius:50%;
+  background:var(--accent-mint);
+  box-shadow:0 0 12px var(--accent-mint);
+  animation:logo-blink 3s ease-in-out infinite;
+}
+@keyframes logo-blink{0%,100%{opacity:1;box-shadow:0 0 12px var(--accent-mint)}50%{opacity:.4;box-shadow:0 0 4px var(--accent-mint)}}
+nav .nav-links{display:flex;align-items:center;gap:20px}
+nav .nav-links a{
+  font-family:var(--font-mono);font-size:11px;text-transform:uppercase;
+  text-decoration:none;color:var(--text-dim);font-weight:500;letter-spacing:.06em;
+  transition:color .2s;
+}
+nav .nav-links a:hover{color:var(--accent-mint)}
+
+/* CONTAINER */
+.container{max-width:1120px;margin:0 auto;padding:0 24px}
+section{padding:72px 0}
+
+/* HERO */
+.hero{padding:80px 0 56px;position:relative;overflow:visible}
+.hero-grid{display:grid;grid-template-columns:1fr 340px;gap:40px;align-items:center}
+.hero h1{
+  font-size:clamp(42px,6.5vw,68px);line-height:.95;
+  letter-spacing:-.03em;margin:20px 0 24px;
+}
+.hero h1 .glow{
+  background:linear-gradient(135deg,var(--accent-mint),var(--accent-sky));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+  background-clip:text;
+  filter:drop-shadow(0 0 30px rgba(0,255,170,.15));
+}
+.hero p.sub{font-size:15px;color:var(--text-dim);max-width:520px;margin-bottom:28px}
+.hero p.sub strong{color:var(--text-bright);font-family:var(--font-mono);font-size:14px}
+.hero-btns{display:flex;gap:10px;flex-wrap:wrap}
+
+/* HERO 3D FLOAT */
+.hero-float{
+  perspective:800px;position:relative;
+}
+.float-card{
+  padding:24px;border-radius:var(--radius);
+  background:#12121a;
+  border:3px solid rgba(255,255,255,.4);
+  box-shadow:12px 12px 0 #000;
+  transform:rotateY(-8deg) rotateX(4deg);
+  transition:transform .5s cubic-bezier(.22,.68,0,1.2);
+  animation:float-bob 6s ease-in-out infinite;
+}
+.float-card:hover{transform:rotateY(0) rotateX(0) scale(1.02)}
+@keyframes float-bob{
+  0%,100%{transform:rotateY(-8deg) rotateX(4deg) translateY(0)}
+  50%{transform:rotateY(-8deg) rotateX(4deg) translateY(-10px)}
+}
+.float-card .fc-title{
+  font-family:var(--font-mono);font-size:10px;text-transform:uppercase;
+  letter-spacing:.1em;color:var(--accent-mint);margin-bottom:14px;
+}
+.float-card .fc-metric{font-family:var(--font-display);font-size:48px;font-weight:700;color:var(--text-bright);line-height:1}
+.float-card .fc-sub{font-size:12px;color:var(--text-dim);margin-top:6px;font-family:var(--font-mono)}
+.float-accent{
+  position:absolute;bottom:-20px;right:-10px;
+  width:140px;padding:14px;
+  background:#0a0a0f;border:3px solid var(--accent-yellow);
+  border-radius:var(--radius);
+  box-shadow:6px 6px 0 #000;
+  transform:rotate(3deg);
+  font-family:var(--font-mono);font-size:11px;color:var(--accent-yellow);
+  animation:float-bob 5s ease-in-out 1s infinite;
+}
+
+/* STATS */
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px}
+.stat-card{padding:22px;position:relative;overflow:hidden}
+.stat-card::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:3px;border-radius:14px 14px 0 0;
+}
+.stat-card .stat-label{
+  font-family:var(--font-mono);font-size:10px;text-transform:uppercase;
+  font-weight:700;letter-spacing:.08em;margin-bottom:10px;
+}
+.stat-card .stat-value{font-family:var(--font-display);font-size:40px;font-weight:700;line-height:1}
+.stat-card .stat-sub{font-size:11px;color:var(--text-dim);margin-top:8px;font-family:var(--font-mono)}
+
+/* BENCHMARK */
+.bench-outer{box-shadow:var(--brutal-shadow-lg)}
+.bench-banner{
+  background:#0a0a0f;
+  border:3px solid rgba(255,255,255,.4);border-radius:var(--radius) var(--radius) 0 0;
+  padding:16px 24px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;
+}
+.bench-banner h3{font-size:14px;text-transform:uppercase;letter-spacing:.04em;color:var(--accent-mint)}
+.bench-formula{font-family:var(--font-mono);font-size:10px;padding:5px 12px;background:rgba(0,0,0,.4);border:1.5px solid rgba(255,255,255,.1);border-radius:6px;color:var(--text-dim)}
+.bench-table-wrap{
+  background:#12121a;border:3px solid rgba(255,255,255,.4);border-top:none;
+  border-radius:0 0 var(--radius) var(--radius);
+  overflow-x:auto;
+}
+.bench-table{width:100%;border-collapse:collapse;font-family:var(--font-mono);font-size:12px}
+.bench-table th{
+  background:rgba(255,255,255,.04);color:var(--text-dim);
+  padding:13px 14px;text-align:left;font-size:10px;text-transform:uppercase;
+  letter-spacing:.08em;font-weight:700;white-space:nowrap;
+  border-bottom:1.5px solid rgba(255,255,255,.06);
+}
+.bench-table td{padding:13px 14px;border-bottom:1px solid rgba(255,255,255,.04);vertical-align:middle}
+.bench-table tr:last-child td{border-bottom:none;background:rgba(255,255,255,.03);font-weight:700}
+.bench-table tr:hover td{background:rgba(255,255,255,.02)}
+.cat-pill{
+  display:inline-block;padding:3px 10px;border-radius:6px;
+  font-weight:700;font-size:10px;text-transform:uppercase;white-space:nowrap;
+}
+.progress-cell{display:flex;align-items:center;gap:8px;min-width:120px}
+.progress-bar{
+  flex:1;height:12px;border-radius:6px;
+  background:rgba(255,255,255,.06);overflow:hidden;min-width:50px;
+  border:1px solid rgba(255,255,255,.06);
+}
+.progress-fill{height:100%;border-radius:5px;transition:width .6s cubic-bezier(.22,.68,0,1.2)}
+.progress-text{font-size:12px;font-weight:700;white-space:nowrap;min-width:46px;color:var(--text-bright)}
+
+/* TRADEOFFS */
+.tradeoff-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px}
+.tradeoff-card{padding:22px;transition:transform .3s,box-shadow .3s}
+.tradeoff-card:hover{transform:translateY(-3px) translateX(-2px);box-shadow:8px 8px 0 rgba(0,0,0,.7)}
+.tradeoff-card h4{font-size:14px;margin-bottom:8px;display:flex;align-items:center;gap:8px}
+.tradeoff-card p{font-size:12px;color:var(--text-dim);line-height:1.7}
+
+/* SANDBOX */
+.sandbox-panels{display:grid;grid-template-columns:1fr 1fr;gap:0;margin-top:16px;box-shadow:var(--brutal-shadow-lg)}
+.sandbox-panel{min-height:240px;padding:20px}
+.sandbox-panel:first-child{
+  border:2.5px solid rgba(255,255,255,.1);border-right:none;
+  border-radius:var(--radius) 0 0 var(--radius);
+  background:rgba(18,18,28,.7);backdrop-filter:blur(20px);
+}
+.sandbox-panel:last-child{
+  border:2.5px solid rgba(0,255,170,.15);
+  border-radius:0 var(--radius) var(--radius) 0;
+  background:rgba(0,255,170,.03);backdrop-filter:blur(20px);
+}
+.sandbox-panel textarea,.sandbox-panel pre{
+  width:100%;height:190px;border:none;outline:none;resize:none;
+  font-family:var(--font-mono);font-size:12px;line-height:1.8;
+  background:transparent;color:inherit;
+}
+.sandbox-panel pre{white-space:pre-wrap;word-break:break-word;overflow-y:auto;color:var(--accent-mint)}
+.panel-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:6px}
+.panel-label{font-family:var(--font-mono);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em}
+.sandbox-presets{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+
+/* DIFFS */
+.diff-tabs{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap}
+.diff-tab{
+  font-family:var(--font-mono);font-size:11px;font-weight:700;
+  padding:8px 16px;border:2px solid rgba(255,255,255,.1);border-radius:8px;
+  background:rgba(255,255,255,.03);color:var(--text-dim);cursor:pointer;
+  box-shadow:3px 3px 0 rgba(0,0,0,.5);backdrop-filter:blur(12px);
+  transition:all .15s;text-transform:uppercase;
+}
+.diff-tab:hover{border-color:rgba(255,255,255,.2);color:var(--text-bright);transform:translate(1px,1px);box-shadow:2px 2px 0 rgba(0,0,0,.5)}
+.diff-tab.active{background:rgba(0,255,170,.1);border-color:rgba(0,255,170,.3);color:var(--accent-mint)}
+.diff-pair{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.diff-box{
+  padding:18px;border-radius:var(--radius);font-family:var(--font-mono);font-size:12px;
+  line-height:1.8;white-space:pre-wrap;word-break:break-word;
+  backdrop-filter:blur(16px);
+}
+.diff-original{border:3px solid var(--accent-coral);background:#0a0a0f;box-shadow:4px 4px 0 #000}
+.diff-redacted{border:3px solid var(--accent-mint);background:#0a0a0f;box-shadow:4px 4px 0 #000}
+.diff-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px;display:block}
+
+/* QUICKSTART */
+.quickstart-panel{
+  background:#12121a;border:3px solid rgba(255,255,255,.4);
+  border-radius:var(--radius);padding:32px;
+  box-shadow:var(--brutal-shadow-lg);
+}
+.quickstart-panel h3{color:var(--accent-mint);margin-bottom:18px;font-size:13px;text-transform:uppercase;letter-spacing:.08em}
+.quickstart-panel pre{
+  font-family:var(--font-mono);font-size:12px;line-height:1.9;overflow-x:auto;
+}
+.quickstart-panel .cmd{color:var(--accent-mint)}
+.quickstart-panel .cmt{color:rgba(255,255,255,.2)}
+
+/* CAVEAT */
+.caveat-box{
+  margin-top:18px;padding:14px 20px;
+  border:3px solid var(--accent-yellow);border-radius:var(--radius);
+  background:#0a0a0f;font-size:12px;line-height:1.7;
+  box-shadow: 6px 6px 0 #000;color:var(--text-dim);
+}
+.caveat-box strong{color:var(--accent-yellow)}
+
+/* GLOW ORBS (DECORATION) */
+.orb{
+  position:absolute;border-radius:50%;filter:blur(80px);pointer-events:none;z-index:-1;
+  animation:orb-pulse 8s ease-in-out infinite alternate;
+}
+@keyframes orb-pulse{0%{opacity:.5;transform:scale(1)}100%{opacity:.8;transform:scale(1.15)}}
+
+/* MARQUEE TICKER */
+.marquee-wrap{
+  overflow:hidden;border-top:3px solid rgba(255,255,255,.2);
+  border-bottom:3px solid rgba(255,255,255,.2);
+  background:rgba(0,255,170,.08);padding:14px 0;
+  box-shadow: 0 4px 0 #000;
+}
+.marquee-track{
+  display:flex;gap:60px;animation:marquee-scroll 25s linear infinite;
+  white-space:nowrap;width:max-content;
+}
+@keyframes marquee-scroll{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
+.marquee-item{
+  font-family:var(--font-display);font-weight:700;font-size:15px;
+  text-transform:uppercase;letter-spacing:.04em;color:var(--text-dim);
+  display:flex;align-items:center;gap:10px;flex-shrink:0;
+}
+.marquee-item .mq-dot{width:6px;height:6px;border-radius:50%;background:var(--accent-mint);flex-shrink:0}
+
+/* SCROLL REVEAL */
+.reveal{
+  opacity:0;transform:translateY(40px) scale(.97);
+  transition:opacity .7s cubic-bezier(.22,.68,0,1.2),transform .7s cubic-bezier(.22,.68,0,1.2);
+}
+.reveal.visible{opacity:1;transform:translateY(0) scale(1)}
+.reveal-delay-1{transition-delay:.1s}
+.reveal-delay-2{transition-delay:.2s}
+.reveal-delay-3{transition-delay:.3s}
+.reveal-delay-4{transition-delay:.4s}
+.reveal-delay-5{transition-delay:.5s}
+
+/* STAT GLOW ON HOVER */
+.stat-card{transition:transform .35s,box-shadow .35s}
+.stat-card:hover{
+  transform:translateY(-6px) translateX(-3px);
+  box-shadow:10px 10px 0 rgba(0,0,0,.8),0 0 40px rgba(0,255,170,.06);
+}
+
+/* FOOTER */
+footer{
+  border-top:2px solid rgba(255,255,255,.06);padding:32px 0;text-align:center;
+  font-family:var(--font-mono);font-size:11px;color:var(--text-dim);
+}
+footer a{color:var(--accent-mint);text-decoration:none;font-weight:700}
+footer a:hover{text-decoration:underline}
+
+/* RESPONSIVE */
+@media(max-width:768px){
+  .hero-grid{grid-template-columns:1fr}
+  .hero-float{display:none}
+  .sandbox-panels{grid-template-columns:1fr}
+  .sandbox-panel:first-child{border-right:2.5px solid rgba(255,255,255,.1);border-radius:var(--radius) var(--radius) 0 0;border-bottom:none}
+  .sandbox-panel:last-child{border-radius:0 0 var(--radius) var(--radius)}
+  .diff-pair{grid-template-columns:1fr}
+  nav{padding:0 16px}
+  nav .nav-links a{font-size:9px}
+  .stats-grid{grid-template-columns:repeat(2,1fr)}
+  .marquee-wrap{display:none}
+}
+
+/* SCROLLBAR */
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:rgba(255,255,255,.1);border-radius:3px}
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="logo"><div class="logo-dot"></div> PII REDACTOR.</div>
+  <div class="nav-links">
+    <a href="#metrics">Metrics</a>
+    <a href="#benchmark">Benchmark</a>
+    <a href="#sandbox">Sandbox</a>
+    <a href="#diffs">Diffs</a>
+    <a href="https://github.com/ankan123basu/PII-Redaction-Tool" target="_blank" class="btn btn--accent" style="padding:6px 14px;font-size:10px;box-shadow:2px 2px 0 rgba(0,0,0,.6)">⭐ GitHub</a>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="container">
+    <div class="hero-grid">
+      <div>
+        <span class="pill" style="background:rgba(0,255,170,.1);border:1.5px solid rgba(0,255,170,.3);color:var(--accent-mint)">⚡ Scalar Labs AI — Enterprise Data Assignment</span>
+        <h1>REDACT PII.<br><span class="glow">PROTECT PRIVACY.</span></h1>
+        <p class="sub">A production-grade, hybrid regex &amp; spaCy NER redaction engine benchmarked on a
+          <strong>3,612-segment</strong> KSH International Limited IPO Red Herring Prospectus. <strong>1,292 entities</strong> detected, <strong>1,271 redacted</strong> in ~35 seconds.</p>
+        <div class="hero-btns">
+          <a href="https://github.com/ankan123basu/PII-Redaction-Tool/raw/main/data/output/redacted_output.docx" class="btn btn--accent">⬇ Redacted .docx</a>
+          <a href="https://github.com/ankan123basu/PII-Redaction-Tool/raw/main/data/output/Evaluation_Strategy_and_Metrics.docx" class="btn btn--yellow">📄 Eval Metric .docx</a>
+          <a href="https://github.com/ankan123basu/PII-Redaction-Tool/blob/main/EVALUATION_REPORT.md" target="_blank" class="btn">📋 Report ↗</a>
+        </div>
+      </div>
+      <div class="hero-float">
+        <div class="float-card card-3d">
+          <div class="card-3d-inner">
+            <div class="fc-title">● Micro F1 Score</div>
+            <div class="fc-metric" style="background:linear-gradient(135deg,var(--accent-mint),var(--accent-sky));-webkit-background-clip:text;-webkit-text-fill-color:transparent">97.1%</div>
+            <div class="fc-sub">17/18 TP · 0 FP · 1 FN</div>
+            <div style="margin-top:14px;padding-top:14px;border-top:1px solid rgba(255,255,255,.06)">
+              <div class="fc-sub" style="color:var(--accent-lavender)">6 entity types evaluated</div>
+              <div class="fc-sub">ADDRESS · CIN · COMPANY · EMAIL · NAME · PHONE</div>
+            </div>
+          </div>
+        </div>
+        <div class="float-accent">📌 0 false positives in entire eval sample</div>
+      </div>
+    </div>
+  </div>
+  <div class="orb" style="width:300px;height:300px;background:var(--accent-mint);top:-50px;left:-100px;opacity:.04"></div>
+  <div class="orb" style="width:250px;height:250px;background:var(--accent-lavender);bottom:-80px;right:-50px;opacity:.04"></div>
+</section>
+
+<!-- MARQUEE TICKER -->
+<div class="marquee-wrap">
+  <div class="marquee-track">
+    <span class="marquee-item"><span class="mq-dot"></span> Hybrid Regex + NER</span>
+    <span class="marquee-item"><span class="mq-dot"></span> Luhn Checksum Validation</span>
+    <span class="marquee-item"><span class="mq-dot"></span> RapidFuzz Entity Merging</span>
+    <span class="marquee-item"><span class="mq-dot"></span> Run-Level XML Preservation</span>
+    <span class="marquee-item"><span class="mq-dot"></span> 11 PII Types</span>
+    <span class="marquee-item"><span class="mq-dot"></span> 128 Unit Tests</span>
+    <span class="marquee-item"><span class="mq-dot"></span> Context-Window Heuristics</span>
+    <span class="marquee-item"><span class="mq-dot"></span> Format-Preserving Fakes</span>
+    <span class="marquee-item"><span class="mq-dot"></span> Hybrid Regex + NER</span>
+    <span class="marquee-item"><span class="mq-dot"></span> Luhn Checksum Validation</span>
+    <span class="marquee-item"><span class="mq-dot"></span> RapidFuzz Entity Merging</span>
+    <span class="marquee-item"><span class="mq-dot"></span> Run-Level XML Preservation</span>
+    <span class="marquee-item"><span class="mq-dot"></span> 11 PII Types</span>
+    <span class="marquee-item"><span class="mq-dot"></span> 128 Unit Tests</span>
+    <span class="marquee-item"><span class="mq-dot"></span> Context-Window Heuristics</span>
+    <span class="marquee-item"><span class="mq-dot"></span> Format-Preserving Fakes</span>
+  </div>
+</div>
+
+<!-- 01 — SCALE RUN -->
+<section id="metrics">
+  <div class="container">
+    <div class="section-tag">
+      <div class="section-num" style="background:rgba(0,255,170,.1);border-color:rgba(0,255,170,.3);color:var(--accent-mint)">01</div>
+      <span class="section-label">Scale Run (Full Document)</span>
+    </div>
+    <div class="stats-grid" style="margin-bottom:24px">
+      <div class="glass-hard stat-card card-3d reveal"><div class="card-3d-inner">
+        <div class="stat-label" style="color:var(--accent-yellow)">● Processed Segments</div>
+        <div class="stat-value" style="color:var(--accent-yellow)" data-count="3612" data-suffix="" data-comma="true">0</div>
+        <div class="stat-sub">Across 400+ pages</div>
+      </div></div>
+      <div class="glass-hard stat-card card-3d reveal reveal-delay-1"><div class="card-3d-inner">
+        <div class="stat-label" style="color:var(--accent-sky)">● Entities Found</div>
+        <div class="stat-value" style="color:var(--accent-sky)" data-count="1292" data-suffix="" data-comma="true">0</div>
+        <div class="stat-sub">Before validation filters</div>
+      </div></div>
+      <div class="glass-hard stat-card card-3d reveal reveal-delay-2"><div class="card-3d-inner">
+        <div class="stat-label" style="color:var(--accent-mint)">● Entities Redacted</div>
+        <div class="stat-value" style="color:var(--accent-mint)" data-count="1271" data-suffix="" data-comma="true">0</div>
+        <div class="stat-sub">Confirmed replacements</div>
+      </div></div>
+      <div class="glass-hard stat-card card-3d reveal reveal-delay-3"><div class="card-3d-inner">
+        <div class="stat-label" style="color:var(--accent-coral)">● Execution Time</div>
+        <div class="stat-value" style="color:var(--accent-coral)" data-count="34.5" data-suffix="s">0s</div>
+        <div class="stat-sub">Hybrid Regex + NER</div>
+      </div></div>
+    </div>
+    <div class="bench-outer reveal" style="border-radius:var(--radius)">
+      <div class="bench-banner" style="background:linear-gradient(135deg,rgba(255,212,0,.12),rgba(255,107,138,.08));border-color:rgba(255,212,0,.2)">
+        <h3 style="color:var(--accent-yellow)">Full Document Raw Detections</h3>
+      </div>
+      <div class="bench-table-wrap">
+        <table class="bench-table">
+          <thead><tr>
+            <th>Entity Type</th><th>Found</th><th>Redacted</th>
+          </tr></thead>
+          <tbody>
+            <tr><td><span class="cat-pill" style="background:rgba(88,166,255,.1);border:1.5px solid rgba(88,166,255,.3);color:#58a6ff">COMPANY_NAME</span></td><td>786</td><td>782</td></tr>
+            <tr><td><span class="cat-pill" style="background:rgba(255,107,138,.1);border:1.5px solid rgba(255,107,138,.3);color:#ff6b8a">FULL_NAME</span></td><td>312</td><td>297</td></tr>
+            <tr><td><span class="cat-pill" style="background:rgba(255,212,0,.12);border:1.5px solid rgba(255,212,0,.3);color:#FFD400">ADDRESS</span></td><td>104</td><td>103</td></tr>
+            <tr><td><span class="cat-pill" style="background:rgba(196,166,255,.1);border:1.5px solid rgba(196,166,255,.3);color:#c4a6ff">EMAIL</span></td><td>48</td><td>48</td></tr>
+            <tr><td><span class="cat-pill" style="background:rgba(255,142,196,.1);border:1.5px solid rgba(255,142,196,.3);color:#ff8ec4">PHONE</span></td><td>33</td><td>32</td></tr>
+            <tr><td><span class="cat-pill" style="background:rgba(0,255,170,.1);border:1.5px solid rgba(0,255,170,.3);color:#00ffaa">CIN</span></td><td>9</td><td>9</td></tr>
+            <tr style="background:rgba(255,255,255,.03);font-weight:700"><td style="font-size:13px">🏆 TOTAL</td><td>1,292</td><td>1,271</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="caveat-box">
+      <strong>⚠️ Context:</strong> Raw detection counts from the full 400-page run — not scored against ground truth. The 21-entity gap between "found" and "redacted" represents entities that fell below confidence thresholds or failed validation (e.g., Luhn checks), which are logged for human review rather than silently dropped.
+    </div>
+  </div>
+</section>
+
+<!-- 02 — BENCHMARK TABLE -->
+<section id="benchmark">
+  <div class="container">
+    <div class="section-tag">
+      <div class="section-num" style="background:rgba(88,166,255,.1);border-color:rgba(88,166,255,.3);color:var(--accent-sky)">02</div>
+      <span class="section-label">Benchmark Evaluation</span>
+    </div>
+    <div class="bench-outer reveal" style="border-radius:var(--radius)">
+      <div class="bench-banner">
+        <h3>18 Annotated Ground Truth Instances</h3>
+        <span class="bench-formula">Accuracy = TP / (TP + FP + FN)</span>
+      </div>
+      <div class="bench-table-wrap">
+        <table class="bench-table">
+          <thead><tr>
+            <th>PII Category</th><th>TP</th><th>FP</th><th>FN</th>
+            <th>Precision</th><th>Recall</th><th>Accuracy</th><th>F1</th>
+          </tr></thead>
+          <tbody id="benchBody"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="caveat-box">
+      <strong>⚠️ Sample Size Note:</strong> Categories with fewer than 5 labeled instances (ADDRESS, CIN, FULL_NAME, EMAIL, PHONE) show 100% because every instance in the small sample was caught — this reflects the sample size, not a claim of perfect real-world accuracy. COMPANY_NAME (n=7) is our most robust category.
+    </div>
+  </div>
+</section>
+
+<!-- TRADEOFFS -->
+<section id="tradeoffs">
+  <div class="container">
+    <div class="section-tag">
+      <div class="section-num" style="background:rgba(196,166,255,.1);border-color:rgba(196,166,255,.3);color:var(--accent-lavender)">⚖️</div>
+      <span class="section-label">Design Tradeoffs</span>
+    </div>
+    <div class="tradeoff-grid">
+      <div class="glass-hard tradeoff-card reveal">
+        <h4><span style="font-size:18px">🗓️</span> DOB Context-Window Guard</h4>
+        <p>Dates only classified as DOB if a keyword ("DOB", "date of birth", "born") appears within 80 characters. Avoids redacting hundreds of incorporation/filing dates — massive precision win at recall cost.</p>
+      </div>
+      <div class="glass-hard tradeoff-card reveal reveal-delay-1">
+        <h4><span style="font-size:18px">💳</span> Luhn Modulo 10 Checksum</h4>
+        <p>Credit card regex matches that fail the Luhn checksum are rejected. The single biggest precision win — 16-digit account numbers and reference numbers in financial documents are correctly excluded.</p>
+      </div>
+      <div class="glass-hard tradeoff-card reveal reveal-delay-2">
+        <h4><span style="font-size:18px">🏢</span> ORG Stoplist Filtering</h4>
+        <p>"the Company", "our Company", "the Board" excluded from COMPANY_NAME. Prevents dozens of false positives per page in legal prose where these appear hundreds of times as pronoun-references.</p>
+      </div>
+      <div class="glass-hard tradeoff-card reveal reveal-delay-3">
+        <h4><span style="font-size:18px">🔗</span> Levenshtein Fuzzy Merge</h4>
+        <p>Near-duplicate names merged via RapidFuzz token_sort_ratio ≥ 85 (e.g., "Kushal Hegde" ↔ "Kushal Subbayya Hegde"). Risk: false merges. Mitigated by same-type-only matching.</p>
+      </div>
+      <div class="glass-hard tradeoff-card reveal reveal-delay-4">
+        <h4><span style="font-size:18px">🏛️</span> CIN as PII Policy</h4>
+        <p>CIN (Corporate Identity Number) detection enabled by default. CINs are publicly registered with MCA — not secret — but uniquely identify companies. Users can disable via entity_rules.yaml.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 03 — SANDBOX -->
+<section id="sandbox">
+  <div class="container">
+    <div class="section-tag">
+      <div class="section-num" style="background:rgba(255,212,0,.1);border-color:rgba(255,212,0,.3);color:var(--accent-yellow)">03</div>
+      <span class="section-label">Interactive Sandbox</span>
+    </div>
+    <p style="font-size:13px;margin-bottom:16px;color:var(--text-dim)">Choose a preset or type your own text. Presets show real before/after from the actual pipeline run:</p>
+    <div class="sandbox-presets">
+      <button class="btn btn--accent" onclick="loadPreset(0)">📋 01. Contact &amp; Office</button>
+      <button class="btn btn--yellow" onclick="loadPreset(1)">💼 02. Directors &amp; DIN</button>
+      <button class="btn btn--coral" onclick="loadPreset(2)">🏦 03. Bankers &amp; BRLM</button>
+      <button class="btn" onclick="clearSandbox()">🧹 Clear</button>
+    </div>
+    <div class="sandbox-panels">
+      <div class="sandbox-panel">
+        <div class="panel-header">
+          <span class="panel-label" style="color:var(--text-bright)">Input Document Text</span>
+          <span class="pill" id="spanCount" style="background:rgba(255,212,0,.15);border:1.5px solid rgba(255,212,0,.3);color:var(--accent-yellow)">0 SPANS</span>
+        </div>
+        <textarea id="inputText" style="color:var(--text)" placeholder="Type or paste text here, or click a preset above..." oninput="runClientRedaction()"></textarea>
+      </div>
+      <div class="sandbox-panel">
+        <div class="panel-header">
+          <span class="panel-label" style="color:var(--accent-mint)">Redacted Output</span>
+          <span class="pill" style="background:rgba(0,255,170,.12);border:1.5px solid rgba(0,255,170,.3);color:var(--accent-mint)">● LIVE</span>
+        </div>
+        <pre id="outputText"></pre>
+      </div>
+    </div>
+    <p style="font-size:10px;color:var(--text-dim);margin-top:12px;font-family:var(--font-mono)">
+      ⚠️ Client-side subset: EMAIL, PHONE, CIN & Luhn-validated credit cards work live. Full pipeline also uses spaCy NER server-side for FULL_NAME, COMPANY_NAME & ADDRESS. Presets show real precomputed pairs.
+    </p>
+  </div>
+</section>
+
+<!-- 04 — DIFFS -->
+<section id="diffs">
+  <div class="container">
+    <div class="section-tag">
+      <div class="section-num" style="background:rgba(255,107,138,.1);border-color:rgba(255,107,138,.3);color:var(--accent-coral)">04</div>
+      <span class="section-label">Real Redaction Diffs</span>
+    </div>
+    <div class="diff-tabs">
+      <button class="diff-tab active" onclick="showDiff(0,this)">📋 Contact</button>
+      <button class="diff-tab" onclick="showDiff(1,this)">🏢 Company</button>
+      <button class="diff-tab" onclick="showDiff(2,this)">📍 Address</button>
+      <button class="diff-tab" onclick="showDiff(3,this)">👤 Names</button>
+    </div>
+    <div id="diffContainer"></div>
+  </div>
+</section>
+
+<!-- QUICKSTART -->
+<section id="quickstart">
+  <div class="container">
+    <div class="section-tag">
+      <div class="section-num" style="background:rgba(0,255,170,.1);border-color:rgba(0,255,170,.3);color:var(--accent-mint)">💻</div>
+      <span class="section-label">Quick Start</span>
+    </div>
+    <div class="quickstart-panel">
+      <h3>Installation &amp; Reproducibility</h3>
+      <pre><span class="cmt"># Clone and install</span>
+<span class="cmd">git clone https://github.com/ankan123basu/PII-Redaction-Tool.git</span>
+<span class="cmd">cd PII-Redaction-Tool && pip install -e ".[dev]"</span>
+<span class="cmd">python -m spacy download en_core_web_lg</span>
+
+<span class="cmt"># Run 128 unit tests</span>
+<span class="cmd">python -m pytest --tb=short -q</span>
+
+<span class="cmt"># Run redaction pipeline</span>
+<span class="cmd">python -m pii_redactor redact \
+  --input "data/input/Red Herring Prospectus.docx" \
+  --output "data/output/redacted_output.docx" \
+  --entity-map-out "data/output/entity_map.json" \
+  --report "data/output/redaction_run_report.json"</span>
+
+<span class="cmt"># Run evaluation</span>
+<span class="cmd">python -m pii_redactor evaluate \
+  --predictions tests/fixtures/real_predictions_expanded_flat.jsonl \
+  --ground-truth tests/fixtures/real_ground_truth_expanded_flat.jsonl \
+  --output EVALUATION_REPORT.md</span></pre>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="container">
+    Built by <a href="https://github.com/ankan123basu" target="_blank">Ankan Basu</a> ·
+    <a href="https://github.com/ankan123basu/PII-Redaction-Tool" target="_blank">GitHub Repository</a> ·
+    Scalar Labs AI — Enterprise Data Assignment
+  </div>
+</footer>
+
+<script>
+/* ====== BENCHMARK TABLE ====== */
+const benchData=[
+  {cat:"COMPANY_NAME",bg:"rgba(88,166,255,.1)",bc:"rgba(88,166,255,.3)",fill:"#58a6ff",tp:6,fp:0,fn:1,n:7,p:100,r:85.7,a:85.7,f1:92.3},
+  {cat:"ADDRESS",bg:"rgba(255,212,0,.12)",bc:"rgba(255,212,0,.3)",fill:"#FFD400",tp:4,fp:0,fn:0,n:4,p:100,r:100,a:100,f1:100},
+  {cat:"CIN",bg:"rgba(0,255,170,.1)",bc:"rgba(0,255,170,.3)",fill:"#00ffaa",tp:3,fp:0,fn:0,n:3,p:100,r:100,a:100,f1:100},
+  {cat:"FULL_NAME",bg:"rgba(255,107,138,.1)",bc:"rgba(255,107,138,.3)",fill:"#ff6b8a",tp:2,fp:0,fn:0,n:2,p:100,r:100,a:100,f1:100},
+  {cat:"EMAIL",bg:"rgba(196,166,255,.1)",bc:"rgba(196,166,255,.3)",fill:"#c4a6ff",tp:1,fp:0,fn:0,n:1,p:100,r:100,a:100,f1:100},
+  {cat:"PHONE",bg:"rgba(255,142,196,.1)",bc:"rgba(255,142,196,.3)",fill:"#ff8ec4",tp:1,fp:0,fn:0,n:1,p:100,r:100,a:100,f1:100},
+];
+const overall={cat:"🏆 OVERALL",fill:"#fff",tp:17,fp:0,fn:1,p:100,r:94.4,a:94.4,f1:97.1};
+
+function bar(val,fill){
+  return`<div class="progress-cell"><div class="progress-bar"><div class="progress-fill" style="width:${val}%;background:${fill}"></div></div><span class="progress-text">${val.toFixed(1)}%</span></div>`;
+}
+const tb=document.getElementById("benchBody");
+benchData.forEach(d=>{
+  const tr=document.createElement("tr");
+  let metricsHTML = "";
+  if (d.n < 5) {
+    metricsHTML = `<td colspan="4" style="color:var(--text-dim);font-style:italic;font-size:11px">${d.tp}/${d.tp+d.fn} correct &nbsp; (n=${d.n} &mdash; too small to generalize)</td>`;
+  } else {
+    metricsHTML = `<td>${bar(d.p,d.fill)}</td><td>${bar(d.r,d.fill)}</td><td>${bar(d.a,d.fill)}</td><td>${bar(d.f1,d.fill)}</td>`;
+  }
+  tr.innerHTML=`<td><span class="cat-pill" style="background:${d.bg};border:1.5px solid ${d.bc};color:${d.fill}">${d.cat}</span></td>
+    <td>${d.tp}</td><td>${d.fp}</td><td>${d.fn}</td>
+    ${metricsHTML}`;
+  tb.appendChild(tr);
+});
+const otr=document.createElement("tr");
+otr.innerHTML=`<td style="font-size:13px">🏆 OVERALL</td>
+  <td><strong>17</strong></td><td><strong>0</strong></td><td><strong>1</strong></td>
+  <td>${bar(100,"rgba(255,255,255,.6)")}</td><td>${bar(94.4,"rgba(255,255,255,.6)")}</td>
+  <td>${bar(94.4,"rgba(255,255,255,.6)")}</td><td>${bar(97.1,"rgba(255,255,255,.6)")}</td>`;
+tb.appendChild(otr);
+
+/* ====== SANDBOX ====== */
+const presets=[
+  {input:`Contact Person: Sarthak Malvadkar, Company Secretary\nEmail: cs.connect@kshinternational.com\nTelephone: + 91 20 4505 3237\nRegistered Office: 11/3, 11/4 and 11/5, Village Birdewadi, Chakan Taluka - Khed, Pune – 410 501, Maharashtra, India`,
+   output:`Contact Person: [FULL_NAME], Company Secretary\nEmail: [EMAIL]\nTelephone: [PHONE]\nRegistered Office: [ADDRESS]`,spans:4},
+  {input:`Rohit Kushal Hegde — Director\nDIN: 00135070\nKirtane & Pandit LLP — Statutory Auditors\nCIN: U28129PN1979PLC141032`,
+   output:`[FULL_NAME] — Director\nDIN: [DIN]\n[COMPANY_NAME] — Statutory Auditors\nCIN: [CIN]`,spans:4},
+  {input:`SBI Capital Markets Limited — Book Running Lead Manager\nBigshare Services Private Limited — Registrar to the Offer\nCorporate Office: 201, Tower 2, Montreal Business Centre, Off Pallod Farms, Baner, Pune – 411 045, Maharashtra, India`,
+   output:`[COMPANY_NAME] — Book Running Lead Manager\n[COMPANY_NAME] — Registrar to the Offer\nCorporate Office: [ADDRESS]`,spans:3}
+];
+function loadPreset(i){
+  document.getElementById("inputText").value=presets[i].input;
+  document.getElementById("outputText").textContent=presets[i].output;
+  document.getElementById("spanCount").textContent=presets[i].spans+" SPANS";
+}
+function clearSandbox(){
+  document.getElementById("inputText").value="";
+  document.getElementById("outputText").textContent="";
+  document.getElementById("spanCount").textContent="0 SPANS";
+}
+function luhn(n){const d=n.replace(/\D/g,"");if(d.length<13||d.length>19)return false;let s=0,a=false;for(let i=d.length-1;i>=0;i--){let x=parseInt(d[i]);if(a){x*=2;if(x>9)x-=9}s+=x;a=!a}return s%10===0}
+function runClientRedaction(){
+  let t=document.getElementById("inputText").value;
+  if(!t.trim()){document.getElementById("outputText").textContent="";document.getElementById("spanCount").textContent="0 SPANS";return}
+  let c=0;
+  t=t.replace(/[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/g,()=>{c++;return"[EMAIL]"});
+  t=t.replace(/(\+\s*91[\s\-]?\d[\s\-]?\d[\s\-]?\d{4}[\s\-]?\d{4}|\b0\d{2,4}[\s\-]?\d{6,8}\b)/g,()=>{c++;return"[PHONE]"});
+  t=t.replace(/\b[UL]\d{5}[A-Z]{2}\d{4}[A-Z]{3}\d{6}\b/g,()=>{c++;return"[CIN]"});
+  t=t.replace(/\b(\d[\s\-]?){13,19}\b/g,m=>{if(luhn(m)){c++;return"[CREDIT_CARD]"}return m});
+  document.getElementById("outputText").textContent=t;
+  document.getElementById("spanCount").textContent=c+" SPANS";
+}
+
+/* ====== DIFFS ====== */
+const diffs=[
+  {original:`Contact Person: Sarthak Malvadkar, Company Secretary\nEmail: cs.connect@kshinternational.com\nTelephone: + 91 20 4505 3237`,
+   redacted:`Contact Person: Kevin Jackson, Company Secretary\nEmail: mark13@example.org\nTelephone: +91 42 7990 4118`},
+  {original:`KSH INTERNATIONAL LIMITED\nCIN: U28129PN1979PLC141032\n\nSBI Capital Markets Limited — Book Running Lead Manager\nBigshare Services Private Limited — Registrar to the Offer`,
+   redacted:`[COMPANY_NAME]\nCIN: [CIN]\n\n[COMPANY_NAME] — Book Running Lead Manager\n[COMPANY_NAME] — Registrar to the Offer`},
+  {original:`Registered Office: 11/3, 11/4 and 11/5, Village Birdewadi, Chakan Taluka - Khed, Pune – 410 501, Maharashtra, India\n\nCorporate Office: 201, Tower 2, Montreal Business Centre, Off Pallod Farms, Baner, Pune – 411 045, Maharashtra, India`,
+   redacted:`Registered Office: 66981 Rodriguez Mission Suite 172, Lake Kevinbury, DC 85153\n\nCorporate Office: 24, Green Valley Road, Sector 5 – 560 034, Karnataka, India`},
+  {original:`Rohit Kushal Hegde — Executive Director\nSarthak Malvadkar — Company Secretary & Compliance Officer\nKirtane & Pandit LLP — Statutory Auditors`,
+   redacted:`James Adams — Executive Director\nKevin Jackson — Company Secretary & Compliance Officer\nMorrison & Partners LLP — Statutory Auditors`}
+];
+function esc(s){return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")}
+function showDiff(i,el){
+  document.querySelectorAll(".diff-tab").forEach(t=>t.classList.remove("active"));
+  el.classList.add("active");
+  const d=diffs[i];
+  document.getElementById("diffContainer").innerHTML=`<div class="diff-pair">
+    <div class="diff-box diff-original"><span class="diff-label" style="color:var(--accent-coral)">⬤ Original</span>${esc(d.original)}</div>
+    <div class="diff-box diff-redacted"><span class="diff-label" style="color:var(--accent-mint)">⬤ Redacted</span>${esc(d.redacted)}</div></div>`;
+}
+showDiff(0,document.querySelector(".diff-tab"));
+
+/* ====== 3D TILT ON MOUSE ====== */
+document.querySelectorAll('.card-3d').forEach(card=>{
+  card.addEventListener('mousemove',e=>{
+    const r=card.getBoundingClientRect();
+    const x=(e.clientX-r.left)/r.width-.5;
+    const y=(e.clientY-r.top)/r.height-.5;
+    const inner=card.querySelector('.card-3d-inner');
+    if(inner)inner.style.transform=`rotateY(${x*8}deg) rotateX(${-y*8}deg) translateZ(6px)`;
+  });
+  card.addEventListener('mouseleave',()=>{
+    const inner=card.querySelector('.card-3d-inner');
+    if(inner)inner.style.transform='rotateY(0) rotateX(0) translateZ(0)';
+  });
+});
+
+/* ====== ANIMATE PROGRESS BARS ON SCROLL ====== */
+const io=new IntersectionObserver(entries=>{
+  entries.forEach(e=>{
+    if(e.isIntersecting){
+      e.target.querySelectorAll('.progress-fill').forEach(bar=>{
+        const w=bar.style.width;bar.style.width='0';
+        requestAnimationFrame(()=>requestAnimationFrame(()=>bar.style.width=w));
+      });
+      io.unobserve(e.target);
+    }
+  });
+},{threshold:.3});
+const benchEl=document.getElementById('benchmark');
+if(benchEl)io.observe(benchEl);
+
+/* ====== SCROLL REVEAL ====== */
+const revealIO=new IntersectionObserver(entries=>{
+  entries.forEach(e=>{
+    if(e.isIntersecting){e.target.classList.add('visible');revealIO.unobserve(e.target)}
+  });
+},{threshold:.15});
+document.querySelectorAll('.reveal').forEach(el=>revealIO.observe(el));
+
+/* ====== ANIMATED COUNTERS ====== */
+const counterIO=new IntersectionObserver(entries=>{
+  entries.forEach(e=>{
+    if(!e.isIntersecting)return;
+    const el=e.target;
+    const target=parseFloat(el.dataset.count);
+    const suffix=el.dataset.suffix||'';
+    const useComma=el.dataset.comma==='true';
+    const isFloat=target%1!==0;
+    const duration=1200;
+    const start=performance.now();
+    function tick(now){
+      const p=Math.min((now-start)/duration,1);
+      const eased=1-Math.pow(1-p,3);
+      let val=eased*target;
+      if(useComma){
+        el.textContent=Math.round(val).toLocaleString()+suffix;
+      }else if(isFloat){
+        el.textContent=val.toFixed(1)+suffix;
+      }else{
+        el.textContent=Math.round(val)+suffix;
+      }
+      if(p<1)requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
+    counterIO.unobserve(el);
+  });
+},{threshold:.5});
+document.querySelectorAll('[data-count]').forEach(el=>counterIO.observe(el));
+</script>
+</body>
+</html>
