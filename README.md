@@ -8,6 +8,23 @@ A production-grade PII (Personally Identifiable Information) redaction tool for 
 
 It detects **11 types of PII** using a **hybrid regex + NER approach**, replaces them with **format-preserving pseudonyms** (not just `[REDACTED]`), maintains **entity-level consistency** across the entire document (same real name → same fake name every time), and writes back a **formatting-preserved DOCX** with all original styles, tables, headers, and footers intact.
 
+## ✨ Key Features
+
+- **🔍 Hybrid Detection Engine**: Pre-compiled regex with checksum validators (Luhn, PAN, CIN) for structured PII, combined with `spaCy` NER for unstructured names and organizations.
+- **🎭 Consistent Pseudonymization**: The same real value gets replaced by the same fake value throughout the document (e.g., "Kushal" always becomes "James"). Powered by seeded `Faker`.
+- **🎨 True Format Preservation**: Run-level XML modification ensures bold, italic, font sizes, colors, and layouts survive the redaction process untouched.
+- **📊 Table & Header Aware**: Iterates through all paragraphs, headers, footers, and deeply nested table cells.
+- **⚙️ Configurable via YAML**: Zero-code extensibility. Toggle PII types or add new regex patterns purely via `config/entity_rules.yaml`.
+- **📈 Self-Evaluating**: Built-in ground truth evaluation framework generating precision, recall, and F1 metrics for transparent accuracy reporting.
+
+## 🛠️ Tech Stack
+
+![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=for-the-badge&logo=python&logoColor=white)
+![spaCy](https://img.shields.io/badge/spaCy-NLP-09A3D5?style=for-the-badge&logo=spacy&logoColor=white)
+![Faker](https://img.shields.io/badge/Faker-Data%20Generation-008139?style=for-the-badge)
+![Pytest](https://img.shields.io/badge/Pytest-Testing-0A9EDC?style=for-the-badge&logo=pytest&logoColor=white)
+![python-docx](https://img.shields.io/badge/python--docx-XML%20Parsing-blue?style=for-the-badge)
+
 ---
 
 ## Approach
@@ -26,6 +43,22 @@ We use **two complementary detection methods** because no single method handles 
 **NER alone** is unreliable for credit card numbers and SSNs — these are just digit sequences with no contextual semantic signal that a language model can learn from.
 
 **The hybrid approach** runs both methods, then uses a **deterministic overlap resolution algorithm** to pick the best detection when they fire on the same text span (validated regex wins over unvalidated NER).
+
+### 🔍 PII Types Supported
+
+| # | PII Type | Detection Strategy | Key Details |
+|---|---|---|---|
+| 1 | **Full Names** | spaCy NER (`PERSON`) | Aggressive role-based fallback regex + strict overlap resolution |
+| 2 | **Email Addresses** | Regex | Standard RFC 5322 pattern matching |
+| 3 | **Phone Numbers** | Regex (Indian Formats) | +91 formats, landlines, spaces/dashes handled |
+| 4 | **Company Names** | spaCy NER (`ORG`) | Legal abbreviations filtered (Ltd, Pvt) and contextual expansion |
+| 5 | **Physical Addresses** | spaCy NER + Heuristics | `GPE`/`LOC` tagging combined with ±150 char span-expansion window to capture PIN codes and Indian states |
+| 6 | **SSNs** | Regex | XXX-XX-XXXX format |
+| 7 | **Credit Card Numbers**| Regex + Luhn Checksum | 13-19 digit sequences mathematically validated to reject financial figures |
+| 8 | **Dates of Birth** | Context-Labeled Regex | Only fires when preceded by "DOB", "born on", "Date of Birth" |
+| 9 | **IP Addresses** | Regex | IPv4 validated 0-255 octets |
+| 10 | **PAN Numbers** | Regex + Checksum | 10-char alphanumeric Indian Permanent Account Number |
+| 11 | **CIN Numbers** | Regex + Checksum | 21-char Indian Corporate Identity Number |
 
 ---
 
@@ -131,6 +164,36 @@ pii-redaction-tool/
     ├── run_redaction.sh               # Bash convenience script
     └── run_redaction.ps1              # PowerShell convenience script
 ```
+
+---
+
+### 🎨 Formatting Preservation (Run-Level Redaction)
+
+The critical innovation here is **run-level XML replacement**. A Word `.docx` paragraph consists of multiple "runs", each with its own formatting (bold, font size, colors). 
+
+If a redaction tool simply replaces the paragraph text (e.g., `paragraph.text = new_text`), **all formatting is instantly destroyed**.
+
+Our tool maps each character offset to its specific XML run using `RunInfo`. When a PII span is replaced, we modify only `run.text` at the exact character boundaries. If a PII span crosses multiple runs, we modify the first run, clear the middle runs, and trim the last run. This ensures bold names stay bold, and red emails stay red.
+
+---
+
+## 📊 Before & After Examples
+
+### Paragraph Redactions (Real Prose)
+
+| Location | Original Text | Redacted Text |
+|---|---|---|
+| Para[744] | `Registered Office: 11/3, 11/4 and 11/5, Village Birdewadi, Chakan Taluka - Khed, Pune – 410 501, Maharashtra, India;` | `Registered Office: 66981 Rodriguez Mission Suite 172, Lake Kevinbury, DC 85153;` |
+| Para[736] | `Contact Person: Sarthak Malvadkar` | `Contact Person: Kevin Jackson` |
+| Para[727] | `Telephone: + 91 20 4505 3237` | `Telephone: +91 42 7990 4118` |
+
+### Table Cell Redactions (Structured Data)
+
+| Location | Original Text | Redacted Text |
+|---|---|---|
+| Table[1] Row[1] | `Kushal Subbayya Hegde` | `James Adams` |
+| Table[1] Row[2] | `Pushpa Kushal Hegde` | `Sarah Mcdonald` |
+| Table[2] Row[8] | `E-mail: cs.connect@kshinternational.com` | `E-mail: mark13@example.org` |
 
 ---
 
