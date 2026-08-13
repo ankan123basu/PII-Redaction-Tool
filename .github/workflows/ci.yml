@@ -1,0 +1,52 @@
+name: CI — Lint & Test
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Cache pip packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -e ".[dev]"
+          python -m spacy download en_core_web_lg
+
+      - name: Lint with ruff
+        run: ruff check src/ tests/
+
+      - name: Run tests with coverage
+        run: |
+          pytest tests/ \
+            --cov=src/pii_redactor \
+            --cov-report=term-missing \
+            --cov-report=xml:coverage.xml \
+            -v
+
+      - name: Check coverage threshold
+        run: |
+          pytest tests/ --cov=src/pii_redactor --cov-fail-under=70

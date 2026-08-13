@@ -1,0 +1,52 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual environment
+.venv/
+venv/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Testing / Coverage
+.pytest_cache/
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+
+# Distribution
+*.whl
+*.tar.gz
+
+# SECURITY: entity_map.json maps fake values back to real PII.
+# This file must NEVER be committed or shared outside the organization.
+data/output/entity_map.json
+
+# Low-confidence review contains detected PII text — treat as sensitive
+data/output/low_confidence_review.csv
+
+# Input data (large DOCX files, user-provided)
+data/input/*.docx
+
+# Ruff
+.ruff_cache/
+
+# mypy
+.mypy_cache/

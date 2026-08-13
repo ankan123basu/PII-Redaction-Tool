@@ -1,0 +1,52 @@
+{
+  "pipeline_version": "1.0.0",
+  "statistics": {
+    "entities_found": {
+      "CIN": 9,
+      "COMPANY_NAME": 786,
+      "FULL_NAME": 312,
+      "ADDRESS": 104,
+      "EMAIL": 48,
+      "PHONE": 33
+    },
+    "entities_redacted": {
+      "COMPANY_NAME": 782,
+      "CIN": 9,
+      "FULL_NAME": 297,
+      "ADDRESS": 103,
+      "EMAIL": 48,
+      "PHONE": 32
+    },
+    "segments_processed": 3612,
+    "total_replacements": 1258,
+    "duration_seconds": 34.5,
+    "unique_entities": 1292
+  },
+  "entity_map_stats": {
+    "COMPANY_NAME": 334,
+    "CIN": 4,
+    "FULL_NAME": 81,
+    "ADDRESS": 48,
+    "EMAIL": 26,
+    "PHONE": 18
+  },
+  "entity_map_total": 511,
+  "detectors_used": [
+    "RegexDetector",
+    "NERDetector"
+  ],
+  "enabled_entity_types": [
+    "FULL_NAME",
+    "COMPANY_NAME",
+    "ADDRESS",
+    "EMAIL",
+    "PHONE",
+    "SSN",
+    "CREDIT_CARD",
+    "DOB",
+    "IP_ADDRESS",
+    "PAN",
+    "CIN"
+  ],
+  "low_confidence_count": 633
+}

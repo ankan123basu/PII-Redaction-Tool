@@ -1,0 +1,187 @@
+# =============================================================================
+# PII Entity Type Registry — config/entity_rules.yaml
+# =============================================================================
+#
+# This file defines all PII types the tool can detect. Each entry specifies:
+#   - name:                 Unique identifier for the PII type
+#   - method:               Detection method ("regex" or "ner")
+#   - enabled:              Whether this type is active (bool)
+#   - confidence_threshold: Minimum confidence score to accept a detection
+#   - pattern:              Regex pattern (for regex-based types; null for NER)
+#   - spacy_labels:         spaCy NER labels to map from (for NER-based types)
+#   - validator:            Optional validator function name (e.g., "luhn_check")
+#   - fake_generator:       Faker method or custom generator for pseudonymization
+#   - description:          Human-readable description
+#
+# HOW TO ADD A NEW PII TYPE:
+#   1. Add a new entry below with the fields above.
+#   2. If it uses regex: provide a 'pattern' and optionally a 'validator'.
+#   3. If it uses NER: provide 'spacy_labels' mapping.
+#   4. Add a fake_generator entry (Faker method name or "custom:<function_name>").
+#   5. That's it — no pipeline code changes needed.
+#
+# Example: Adding Passport Number detection
+#   - name: PASSPORT
+#     method: regex
+#     enabled: true
+#     confidence_threshold: 0.90
+#     pattern: '[A-Z]{1}[0-9]{7}'
+#     validator: null
+#     fake_generator: "custom:fake_passport"
+#     description: "Indian passport number"
+# =============================================================================
+
+entity_types:
+
+  # --- NER-based types (unstructured PII with no fixed grammar) ---
+
+  - name: FULL_NAME
+    method: ner
+    enabled: true
+    confidence_threshold: 0.70
+    pattern: null
+    spacy_labels:
+      - PERSON
+    validator: null
+    fake_generator: name
+    description: >
+      Full personal names detected via NER. Handles multi-word names,
+      honorifics (Mr./Ms./Dr.), and Indian naming conventions.
+
+  - name: COMPANY_NAME
+    method: ner
+    enabled: true
+    confidence_threshold: 0.70
+    pattern: null
+    spacy_labels:
+      - ORG
+    validator: null
+    fake_generator: company
+    description: >
+      Company and organization names detected via NER, cross-checked
+      against a stoplist of generic terms ("the Company", "our Company")
+      to avoid redacting pronoun-style references.
+
+  - name: ADDRESS
+    method: ner
+    enabled: true
+    confidence_threshold: 0.60
+    pattern: null
+    spacy_labels:
+      - GPE
+      - LOC
+      - FAC
+    validator: null
+    fake_generator: address
+    description: >
+      Physical/mailing addresses combining NER (GPE/LOC/FAC labels)
+      with regex for Indian pincodes. Handles multi-line addresses
+      inside table cells.
+
+  # --- Regex-based types (structured PII with known grammar) ---
+
+  - name: EMAIL
+    method: regex
+    enabled: true
+    confidence_threshold: 0.95
+    pattern: '\b[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}\b'
+    spacy_labels: null
+    validator: null
+    fake_generator: email
+    description: "Email addresses (RFC-5322-lite pattern)"
+
+  - name: PHONE
+    method: regex
+    enabled: true
+    confidence_threshold: 0.85
+    pattern: null  # Multiple patterns defined in code
+    spacy_labels: null
+    validator: validate_phone
+    fake_generator: phone_number
+    description: >
+      Phone numbers in Indian (+91, 10-digit) and international formats,
+      with/without separators. Validated by digit count.
+
+  - name: SSN
+    method: regex
+    enabled: true
+    confidence_threshold: 0.90
+    pattern: '(?<!\d)\d{3}[\-\s]\d{2}[\-\s]\d{4}(?!\d)'
+    spacy_labels: null
+    validator: validate_ssn
+    fake_generator: ssn
+    description: "US Social Security Numbers (XXX-XX-XXXX), validated by area/group/serial range"
+
+  - name: CREDIT_CARD
+    method: regex
+    enabled: true
+    confidence_threshold: 0.95
+    pattern: null  # Multiple patterns defined in code (Visa, MC, Amex, generic)
+    spacy_labels: null
+    validator: luhn_check
+    fake_generator: credit_card_number
+    description: >
+      Credit card numbers (13-19 digits, major network prefixes).
+      LUHN CHECKSUM VALIDATION eliminates false positives from
+      generic 16-digit numbers — the single biggest precision win.
+
+  - name: DOB
+    method: regex
+    enabled: true
+    confidence_threshold: 0.80
+    pattern: null  # Multiple date format patterns defined in code
+    spacy_labels: null
+    validator: null
+    fake_generator: date_of_birth
+    description: >
+      Dates of birth in multiple formats (DD/MM/YYYY, YYYY-MM-DD,
+      "Month DD, YYYY", etc.). CONTEXT WINDOW GUARD: only flags dates
+      near keywords like "DOB", "date of birth", "born" within 80 chars.
+      This prevents redacting the hundreds of unrelated dates in
+      legal/financial documents. Documented tradeoff: may miss DOBs
+      without nearby context keywords (recall cost for precision gain).
+
+  - name: IP_ADDRESS
+    method: regex
+    enabled: true
+    confidence_threshold: 0.85
+    pattern: null  # IPv4 + IPv6 patterns defined in code
+    spacy_labels: null
+    validator: validate_ipv4
+    fake_generator: ipv4
+    description: >
+      IPv4 and IPv6 addresses. Excludes version-number false positives
+      (e.g., "v2018.1.0.0" preceded by "v"/"version").
+
+  # --- Bonus: India-specific types ---
+
+  - name: PAN
+    method: regex
+    enabled: true
+    confidence_threshold: 0.90
+    pattern: '(?<![A-Z0-9])[A-Z]{5}\d{4}[A-Z](?![A-Z0-9])'
+    spacy_labels: null
+    validator: validate_pan
+    fake_generator: "custom:fake_pan"
+    description: >
+      Indian Permanent Account Number. Format: AAAAA9999A.
+      4th character indicates entity type (P=Person, C=Company, etc.)
+
+  - name: CIN
+    method: regex
+    enabled: true
+    confidence_threshold: 0.90
+    pattern: '(?<![A-Z0-9])[UL]\d{5}[A-Z]{2}\d{4}[A-Z]{3}\d{6}(?![A-Z0-9])'
+    spacy_labels: null
+    validator: validate_cin
+    fake_generator: "custom:fake_cin"
+    description: >
+      Indian Corporate Identity Number. Format: U/L + 5 digits + 2 letters +
+      4 digits + 3 letters + 6 digits (21 chars total).
+
+      POLICY CHOICE: CINs are publicly registered with the MCA and not
+      technically "secret." However, they uniquely identify a company and
+      can be used for entity resolution. We include CIN detection as
+      ENABLED by default, treating it as PII-adjacent/company-identifying
+      data. Users who disagree can set enabled: false here.
+      This is an explicit, documented choice per the assignment's instruction.

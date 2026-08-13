@@ -1,0 +1,13 @@
+# Core dependencies
+python-docx>=1.1.0
+spacy>=3.7.0
+pyyaml>=6.0
+faker>=25.0
+rich>=13.0
+click>=8.1
+rapidfuzz>=3.0
+
+# Dev / testing
+pytest>=8.0
+pytest-cov>=5.0
+ruff>=0.4.0
