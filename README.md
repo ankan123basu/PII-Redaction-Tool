@@ -8,14 +8,16 @@ A production-grade PII (Personally Identifiable Information) redaction tool for 
 
 It detects **11 types of PII** using a **hybrid regex + NER approach**, replaces them with **format-preserving pseudonyms** (not just `[REDACTED]`), maintains **entity-level consistency** across the entire document (same real name → same fake name every time), and writes back a **formatting-preserved DOCX** with all original styles, tables, headers, and footers intact.
 
-## ✨ Key Features
+## ✨ Key Innovations & Algorithmic Differentiators (Why this tool stands out)
 
-- **🔍 Hybrid Detection Engine**: Pre-compiled regex with checksum validators (Luhn, PAN, CIN) for structured PII, combined with `spaCy` NER for unstructured names and organizations.
-- **🎭 Consistent Pseudonymization**: The same real value gets replaced by the same fake value throughout the document (e.g., "Kushal" always becomes "James"). Powered by seeded `Faker`.
-- **🎨 True Format Preservation**: Run-level XML modification ensures bold, italic, font sizes, colors, and layouts survive the redaction process untouched.
-- **📊 Table & Header Aware**: Iterates through all paragraphs, headers, footers, and deeply nested table cells.
-- **⚙️ Configurable via YAML**: Zero-code extensibility. Toggle PII types or add new regex patterns purely via `config/entity_rules.yaml`.
-- **📈 Self-Evaluating**: Built-in ground truth evaluation framework generating precision, recall, and F1 metrics for transparent accuracy reporting.
+Most PII redactors rely on simple Regex or off-the-shelf NER, which completely fail on dense financial documents. Here is what we built differently:
+
+- **1. Levenshtein Fuzzy Entity Merging (`RapidFuzz`)**: We don't just replace text; we maintain a global state. We use rapid fuzzy-string matching (threshold > 85) so that slight variations (e.g., "Kushal Hegde" vs. "Mr. Kushal Hegde") mathematically resolve to the **exact same** fake pseudonym globally.
+- **2. Deterministic Overlap Resolution**: When our Regex and NER engines collide on the same text span, we apply a greedy interval-scheduling algorithm (sorting by `start_idx` and `-length`) to guarantee the most specific, longest valid span wins.
+- **3. Context-Window Expansion Heuristic**: spaCy's NER fails on long Indian postal addresses. We built a custom ±150-char sliding window algorithm that anchors onto partial `GPE` detections and expands outward to capture exact PIN codes, states, and house numbers.
+- **4. Cryptographic & Checksum Validation**: Credit cards and PAN/CIN numbers are not just regex-matched. We run them through **Luhn Modulo 10** and format-specific checksums to mathematically reject the thousands of random financial figures found in an IPO prospectus.
+- **5. Run-Level XML Recombination**: We don't replace paragraph text (which destroys DOCX formatting). We built a `RunInfo` parser that maps text offsets directly to DOCX XML `<w:r>` runs, modifying text exactly at character boundaries while preserving bold/italic/color styling.
+- **6. Role-Anchor Regex Fallback**: We built a secondary detection layer using look-behind regex for legal role anchors (e.g., `"Contact Person:"`, `"Director:"`) to forcefully catch entities that ML models silently drop in dense tables.
 
 ## 🛠️ Tech Stack
 
