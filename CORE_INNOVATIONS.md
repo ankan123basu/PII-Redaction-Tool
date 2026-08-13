@@ -1,4 +1,4 @@
-# 🧠 Unique Algorithms & Innovations
+# 🧠 Core Engineering Innovations
 
 Most standard PII redactors rely on simple Regex or off-the-shelf NER, which fail catastrophically on dense, unformatted financial documents. 
 
