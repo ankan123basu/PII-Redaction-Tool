@@ -1,10 +1,12 @@
-# PII Redaction Tool
+# 🛡️ PII Redaction Tool
 
-## Overview
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-A production-grade PII (Personally Identifiable Information) redaction tool for DOCX documents. It detects 11 types of PII using a **hybrid regex + NER approach**, replaces them with **format-preserving pseudonyms** (not just "[REDACTED]"), maintains **entity-level consistency** across the entire document (same real name → same fake name every time), and writes back a **formatting-preserved DOCX** with all original styles, tables, headers, and footers intact.
+A production-grade PII (Personally Identifiable Information) redaction tool for complex, multi-hundred-page DOCX files (like Red Herring Prospectuses). 
 
-Built specifically to handle dense legal/financial documents like Red Herring Prospectuses — documents with hundreds of pages, repeated tables, PII embedded in legal prose, and the same entities appearing dozens of times.
+It detects **11 types of PII** using a **hybrid regex + NER approach**, replaces them with **format-preserving pseudonyms** (not just `[REDACTED]`), maintains **entity-level consistency** across the entire document (same real name → same fake name every time), and writes back a **formatting-preserved DOCX** with all original styles, tables, headers, and footers intact.
 
 ---
 
