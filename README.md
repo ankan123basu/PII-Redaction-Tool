@@ -4,6 +4,12 @@
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
+![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=for-the-badge&logo=python&logoColor=white)
+![spaCy](https://img.shields.io/badge/spaCy-NLP-09A3D5?style=for-the-badge&logo=spacy&logoColor=white)
+![Faker](https://img.shields.io/badge/Faker-Data%20Generation-008139?style=for-the-badge)
+![Pytest](https://img.shields.io/badge/Pytest-Testing-0A9EDC?style=for-the-badge&logo=pytest&logoColor=white)
+![python-docx](https://img.shields.io/badge/python--docx-XML%20Parsing-blue?style=for-the-badge)
+
 A production-grade PII (Personally Identifiable Information) redaction tool for complex, multi-hundred-page DOCX files (like Red Herring Prospectuses). 
 
 It detects **11 types of PII** using a **hybrid regex + NER approach**, replaces them with **format-preserving pseudonyms** (not just `[REDACTED]`), maintains **entity-level consistency** across the entire document (same real name → same fake name every time), and writes back a **formatting-preserved DOCX** with all original styles, tables, headers, and footers intact.
@@ -19,15 +25,7 @@ Most PII redactors rely on simple Regex or off-the-shelf NER, which completely f
 - **5. Run-Level XML Recombination**: We don't replace paragraph text (which destroys DOCX formatting). We built a `RunInfo` parser that maps text offsets directly to DOCX XML `<w:r>` runs, modifying text exactly at character boundaries while preserving bold/italic/color styling.
 - **6. Role-Anchor Regex Fallback**: We built a secondary detection layer using look-behind regex for legal role anchors (e.g., `"Contact Person:"`, `"Director:"`) to forcefully catch entities that ML models silently drop in dense tables.
 
-## 🛠️ Tech Stack
 
-![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=for-the-badge&logo=python&logoColor=white)
-![spaCy](https://img.shields.io/badge/spaCy-NLP-09A3D5?style=for-the-badge&logo=spacy&logoColor=white)
-![Faker](https://img.shields.io/badge/Faker-Data%20Generation-008139?style=for-the-badge)
-![Pytest](https://img.shields.io/badge/Pytest-Testing-0A9EDC?style=for-the-badge&logo=pytest&logoColor=white)
-![python-docx](https://img.shields.io/badge/python--docx-XML%20Parsing-blue?style=for-the-badge)
-
----
 
 ## 🏗️ Architecture
 
