@@ -27,42 +27,7 @@ It detects **11 types of PII** using a **hybrid regex + NER approach**, replaces
 
 ---
 
-## Approach
-
-### Why Hybrid Detection (Regex + NER)
-
-We use **two complementary detection methods** because no single method handles all PII types well:
-
-| Detection Method | Good For | Bad For |
-|---|---|---|
-| **Regex + Validators** | Structured PII with known grammar: emails, phone numbers, SSNs, credit cards, IPs, PAN, CIN | Names, companies, addresses — no fixed grammar to match |
-| **NER (spaCy)** | Unstructured PII: personal names ("Rashi Patil"), company names, physical addresses | Credit cards, SSNs, IPs — no semantic signal in embeddings |
-
-**Regex alone** cannot catch "Kushal Subbayya Hegde" as a person's name — there is no regular expression that reliably matches arbitrary Indian names without massive false positives.
-
-**NER alone** is unreliable for credit card numbers and SSNs — these are just digit sequences with no contextual semantic signal that a language model can learn from.
-
-**The hybrid approach** runs both methods, then uses a **deterministic overlap resolution algorithm** to pick the best detection when they fire on the same text span (validated regex wins over unvalidated NER).
-
-### 🔍 PII Types Supported
-
-| # | PII Type | Detection Strategy | Key Details |
-|---|---|---|---|
-| 1 | **Full Names** | spaCy NER (`PERSON`) | Aggressive role-based fallback regex + strict overlap resolution |
-| 2 | **Email Addresses** | Regex | Standard RFC 5322 pattern matching |
-| 3 | **Phone Numbers** | Regex (Indian Formats) | +91 formats, landlines, spaces/dashes handled |
-| 4 | **Company Names** | spaCy NER (`ORG`) | Legal abbreviations filtered (Ltd, Pvt) and contextual expansion |
-| 5 | **Physical Addresses** | spaCy NER + Heuristics | `GPE`/`LOC` tagging combined with ±150 char span-expansion window to capture PIN codes and Indian states |
-| 6 | **SSNs** | Regex | XXX-XX-XXXX format |
-| 7 | **Credit Card Numbers**| Regex + Luhn Checksum | 13-19 digit sequences mathematically validated to reject financial figures |
-| 8 | **Dates of Birth** | Context-Labeled Regex | Only fires when preceded by "DOB", "born on", "Date of Birth" |
-| 9 | **IP Addresses** | Regex | IPv4 validated 0-255 octets |
-| 10 | **PAN Numbers** | Regex + Checksum | 10-char alphanumeric Indian Permanent Account Number |
-| 11 | **CIN Numbers** | Regex + Checksum | 21-char Indian Corporate Identity Number |
-
----
-
-## Architecture
+## 🏗️ Architecture
 
 ### Pipeline Flow
 
@@ -113,60 +78,6 @@ graph TD
     style Pseudonymizer fill:#9C27B0,color:#fff
 ```
 
-### Project Structure
-
-```
-pii-redaction-tool/
-├── README.md                           # This file
-├── EVALUATION_REPORT.md                # Evaluation results with methodology
-├── ARCHITECTURE.md                     # Detailed architecture documentation
-├── requirements.txt                    # Dependencies
-├── pyproject.toml                      # PEP 621 project metadata
-├── .gitignore                          # Includes entity_map.json exclusion
-├── .github/workflows/ci.yml           # Lint + test CI pipeline
-├── config/
-│   └── entity_rules.yaml              # Declarative PII type registry
-├── src/pii_redactor/
-│   ├── __init__.py                    # Package version
-│   ├── __main__.py                    # python -m pii_redactor entry point
-│   ├── cli.py                         # Click CLI with rich output tables
-│   ├── pipeline.py                    # Orchestrator: extract → detect → resolve → pseudonymize → write
-│   ├── document_io/
-│   │   ├── docx_reader.py            # Structure-preserving DOCX extraction
-│   │   └── docx_writer.py            # Run-level replacement to preserve formatting
-│   ├── detectors/
-│   │   ├── base.py                    # Abstract Detector interface
-│   │   ├── regex_detectors.py        # Email, phone, SSN, CC (Luhn!), IP, DOB, PAN, CIN
-│   │   ├── ner_detector.py           # spaCy NER + role-label fallback + address expansion
-│   │   └── registry.py               # Loads YAML config, wires detectors
-│   ├── validators/
-│   │   └── checksum.py                # Luhn checksum, phone/SSN/PAN/CIN validators
-│   ├── pseudonymizer/
-│   │   ├── faker_provider.py          # Format-preserving fake value generation
-│   │   └── entity_map.py             # Consistent entity→fake mapping with fuzzy matching
-│   └── evaluation/
-│       ├── metrics.py                 # Precision/recall/F1 per entity type
-│       └── report_generator.py        # Auto-generates EVALUATION_REPORT.md
-├── tests/                             # 128 tests across 4 test modules
-│   ├── test_regex_detectors.py        # 59 test cases for regex patterns + validators
-│   ├── test_ner_detector.py           # 28 NER precision filter + address expansion tests
-│   ├── test_pseudonymizer_consistency.py  # Consistency, fuzzy matching, format tests
-│   ├── test_pipeline_end_to_end.py    # Full pipeline integration tests
-│   └── fixtures/
-│       ├── sample_input.docx          # Synthetic test DOCX with known PII
-│       └── generate_fixture.py        # Script to regenerate the fixture
-├── data/
-│   ├── input/                         # Place input DOCX files here
-│   └── output/                        # Redacted output + reports
-│       ├── redacted_output.docx       # ← The redacted document (committed)
-│       └── redaction_run_report.json  # ← Pipeline run statistics (committed)
-└── scripts/
-    ├── run_redaction.sh               # Bash convenience script
-    └── run_redaction.ps1              # PowerShell convenience script
-```
-
----
-
 ### 🎨 Formatting Preservation (Run-Level Redaction)
 
 The critical innovation here is **run-level XML replacement**. A Word `.docx` paragraph consists of multiple "runs", each with its own formatting (bold, font size, colors). 
@@ -174,6 +85,70 @@ The critical innovation here is **run-level XML replacement**. A Word `.docx` pa
 If a redaction tool simply replaces the paragraph text (e.g., `paragraph.text = new_text`), **all formatting is instantly destroyed**.
 
 Our tool maps each character offset to its specific XML run using `RunInfo`. When a PII span is replaced, we modify only `run.text` at the exact character boundaries. If a PII span crosses multiple runs, we modify the first run, clear the middle runs, and trim the last run. This ensures bold names stay bold, and red emails stay red.
+
+---
+
+## 📈 Evaluation Summary
+
+See **[EVALUATION_REPORT.md](EVALUATION_REPORT.md)** for the full evaluation with per-entity-type precision/recall/F1 scores, concrete false positive/negative analysis, and honest methodology disclosure.
+
+### Ground Truth Construction
+Ground truth was manually annotated from representative PII-dense sections of the Red Herring Prospectus (covering front matter, definitions, board of directors, auditors, general information, and bankers). This captures the dense contact/management sections where PII heavily clusters.
+
+### Metrics Definitions
+
+| Metric | Formula | Interpretation |
+|---|---|---|
+| **Precision** | `TP / (TP + FP)` | Of everything the tool flagged as PII, what fraction was actually PII? |
+| **Recall** | `TP / (TP + FN)` | Of all actual PII in the ground truth, what fraction did the tool find? |
+| **Accuracy (Jaccard)** | `TP / (TP + FP + FN)` | Strictest measure. Used instead of standard accuracy because True Negatives are ill-defined in span detection (the vast majority of document text is correctly non-PII). |
+| **F1 Score** | `2 * (P * R) / (P + R)` | Harmonic mean of Precision and Recall. |
+
+**Quick numbers** (18-span hand-labeled sample from the real prospectus):
+
+| Metric | Value |
+|--------|-------|
+| Precision (micro) | 100.0% |
+| Recall (micro) | 94.4% |
+| **F1 (micro)** | **97.1%** |
+| Only miss | "Waterloo Industrial Park VI Private Limited" (genuine spaCy FN) |
+
+> **Honest caveat**: These metrics are on a small 18-span sample. Per-type scores of "100%" for EMAIL (1 span), PHONE (1 span), etc. reflect the tiny sample size, not a claim of perfection. The address-expansion heuristic was refined against this sample and hasn't been validated on additional documents. See the evaluation report for full methodology and limitations.
+
+### NER Bug Fixes (Before/After)
+During development on the real prospectus, we identified and fixed four specific NER failure modes — each diagnosed from a concrete error, not tuned by trial-and-error:
+1. **Multi-line Address Fragmentation**: Fixed `docx_reader` to join all paragraphs within a single table cell before detection, preventing multi-line addresses from being split into unrecognizable fragments.
+2. **Role-Label Name Evasion**: Added a deterministic regex fallback to catch names immediately following role titles (e.g., "Contact Person: Sarthak Malvadkar") which spaCy consistently missed in dense legal contexts.
+3. **Street Names as Companies**: Added negative filters for address-indicator terms (Road, Nagar, Business Centre) to prevent spaCy from misclassifying street names as `COMPANY_NAME` unless they have a valid legal suffix.
+4. **Address Span Expansion**: spaCy's NER only tagged small fragments of Indian postal addresses (like "Village Birdewadi") as location entities. Added a heuristic to expand these fragments outward into full addresses by searching the surrounding ±150-char text window for labels ("Registered Office:"), house numbers, and pincodes. Leading context words are trimmed so spans start cleanly at the actual address.
+
+**Progression**: ~75% F1 (baseline) → ~82% (after bugs 1-3) → **97.1%** (after bug 4 + GT typo fix). Each improvement came from fixing a real detection bug, not from adjusting the evaluation set or loosening matching criteria.
+
+---
+
+## ⚖️ Design Tradeoffs & Known Limitations
+
+### Deliberate Design Choices
+
+| Decision | Tradeoff | Rationale |
+|---|---|---|
+| **DOB context-window guard** | May miss DOBs without nearby keywords ("DOB", "born") — recall cost | Without this, every date in a 400-page legal document gets redacted, destroying precision. Hundreds of incorporation dates, filing dates, and regulation dates would be false positives. |
+| **Credit card Luhn validation** | Rejects any CC-like number that fails Luhn — may miss poorly-formed test data | The precision gain is massive. Financial documents contain many 16-digit numbers (account numbers, reference numbers) that are not credit cards. |
+| **ORG stoplist** | "the Company", "our Company" excluded — may miss actual company names that use generic phrasing | Legal documents use "the Company" as a pronoun-reference hundreds of times. Redacting all of them would make the output unreadable. |
+| **CIN included as PII** | CINs are publicly registered — arguably not secret | They uniquely identify a company and can be used for entity resolution. We treat them as PII-adjacent and include detection by default. Users can disable in `entity_rules.yaml`. |
+| **Entity fuzzy matching (threshold=85)** | Risk of false merges: two genuinely different people with similar names could be merged | Conservative threshold and same-type-only matching mitigate this. The benefit — consistent pseudonymization when the same person's name varies slightly — is critical for output quality. |
+| **en_core_web_lg model** | ~560 MB download, slower than small model | Significantly better NER accuracy for Indian names and companies compared to en_core_web_sm. |
+
+### Known False Positives (Things We Over-Redact)
+
+1. **Short location names** (e.g., "India", "Mumbai") detected as ADDRESS by NER — these are common in legal text and arguably not PII in isolation. We assign low confidence (0.40-0.60) to mitigate.
+2. **Legal-suffix company abbreviations** in tables — "XYZ Ltd." where XYZ is a column header, not an actual company.
+
+### Known False Negatives (Things We Might Miss)
+
+1. **DOBs without context keywords** — a date of birth appearing in a table cell labeled "DOB" only in the column header (not within 80 chars of the actual date cell) may be missed.
+2. **Names split across runs** — if a name is partially bold and partially not, python-docx splits it across runs. Our run-recombination handles most cases but edge cases in complex formatting may cause partial detection.
+3. **Addresses spanning multiple table cells** — if an address is split across "Street", "City", "State" columns rather than in a single cell, each piece is detected separately and may not be recognized as a complete address.
 
 ---
 
@@ -197,65 +172,7 @@ Our tool maps each character offset to its specific XML run using `RunInfo`. Whe
 
 ---
 
-## How to Extend to a New PII Type
-
-Adding a new PII type requires **zero code changes to the pipeline**. Here's a worked example for adding **Passport Number** detection:
-
-### Step 1: Add to `config/entity_rules.yaml`
-
-```yaml
-  - name: PASSPORT
-    method: regex
-    enabled: true
-    confidence_threshold: 0.90
-    pattern: '[A-Z]{1}[0-9]{7}'
-    spacy_labels: null
-    validator: null
-    fake_generator: "custom:fake_passport"
-    description: "Indian passport number (1 letter + 7 digits)"
-```
-
-### Step 2: Add a regex pattern to `regex_detectors.py` (if needed)
-
-If the pattern in the YAML is simple, the existing `RegexDetector` handles it. For complex patterns with validators, add a method:
-
-```python
-_PASSPORT_PATTERN = re.compile(r"(?<![A-Z0-9])[A-Z]\d{7}(?![A-Z0-9])")
-
-def _detect_passports(self, text: str) -> list[DetectedEntity]:
-    entities = []
-    for match in self._PASSPORT_PATTERN.finditer(text):
-        entities.append(DetectedEntity(
-            text=match.group(), entity_type="PASSPORT",
-            start=match.start(), end=match.end(),
-            confidence=0.90, detector_name=self.name, validated=True,
-        ))
-    return entities
-```
-
-### Step 3: Add a fake generator to `faker_provider.py`
-
-```python
-def _fake_passport(self, original: str) -> str:
-    letter = self._rng.choice(string.ascii_uppercase)
-    digits = "".join(str(self._rng.randint(0, 9)) for _ in range(7))
-    return f"{letter}{digits}"
-```
-
-### Step 4: Add tests
-
-```python
-def test_valid_passport(self, detector):
-    entities = detector.detect("Passport: J1234567")
-    assert len(entities) == 1
-    assert entities[0].entity_type == "PASSPORT"
-```
-
-That's it. No changes to the pipeline, CLI, writer, or any other module.
-
----
-
-## Setup & Usage
+## 🚀 Setup & Usage
 
 ### Prerequisites
 
@@ -341,59 +258,107 @@ pytest tests/test_regex_detectors.py -v
 
 ---
 
-## Design Tradeoffs & Known False Positives/Negatives
+## 🧠 Approach & Supported Types
 
-### Deliberate Design Choices
+### Why Hybrid Detection (Regex + NER)
 
-| Decision | Tradeoff | Rationale |
+We use **two complementary detection methods** because no single method handles all PII types well:
+
+| Detection Method | Good For | Bad For |
 |---|---|---|
-| **DOB context-window guard** | May miss DOBs without nearby keywords ("DOB", "born") — recall cost | Without this, every date in a 400-page legal document gets redacted, destroying precision. Hundreds of incorporation dates, filing dates, and regulation dates would be false positives. |
-| **Credit card Luhn validation** | Rejects any CC-like number that fails Luhn — may miss poorly-formed test data | The precision gain is massive. Financial documents contain many 16-digit numbers (account numbers, reference numbers) that are not credit cards. |
-| **ORG stoplist** | "the Company", "our Company" excluded — may miss actual company names that use generic phrasing | Legal documents use "the Company" as a pronoun-reference hundreds of times. Redacting all of them would make the output unreadable. |
-| **CIN included as PII** | CINs are publicly registered — arguably not secret | They uniquely identify a company and can be used for entity resolution. We treat them as PII-adjacent and include detection by default. Users can disable in `entity_rules.yaml`. |
-| **Entity fuzzy matching (threshold=85)** | Risk of false merges: two genuinely different people with similar names could be merged | Conservative threshold and same-type-only matching mitigate this. The benefit — consistent pseudonymization when the same person's name varies slightly — is critical for output quality. |
-| **en_core_web_lg model** | ~560 MB download, slower than small model | Significantly better NER accuracy for Indian names and companies compared to en_core_web_sm. |
+| **Regex + Validators** | Structured PII with known grammar: emails, phone numbers, SSNs, credit cards, IPs, PAN, CIN | Names, companies, addresses — no fixed grammar to match |
+| **NER (spaCy)** | Unstructured PII: personal names ("Rashi Patil"), company names, physical addresses | Credit cards, SSNs, IPs — no semantic signal in embeddings |
 
-### Known False Positives (Things We Over-Redact)
+**Regex alone** cannot catch "Kushal Subbayya Hegde" as a person's name — there is no regular expression that reliably matches arbitrary Indian names without massive false positives.
 
-1. **Short location names** (e.g., "India", "Mumbai") detected as ADDRESS by NER — these are common in legal text and arguably not PII in isolation. We assign low confidence (0.40-0.60) to mitigate.
-2. **Legal-suffix company abbreviations** in tables — "XYZ Ltd." where XYZ is a column header, not an actual company.
+**NER alone** is unreliable for credit card numbers and SSNs — these are just digit sequences with no contextual semantic signal that a language model can learn from.
 
-### Known False Negatives (Things We Might Miss)
+**The hybrid approach** runs both methods, then uses a **deterministic overlap resolution algorithm** to pick the best detection when they fire on the same text span (validated regex wins over unvalidated NER).
 
-1. **DOBs without context keywords** — a date of birth appearing in a table cell labeled "DOB" only in the column header (not within 80 chars of the actual date cell) may be missed.
-2. **Names split across runs** — if a name is partially bold and partially not, python-docx splits it across runs. Our run-recombination handles most cases but edge cases in complex formatting may cause partial detection.
-3. **Addresses spanning multiple table cells** — if an address is split across "Street", "City", "State" columns rather than in a single cell, each piece is detected separately and may not be recognized as a complete address.
+### 🔍 PII Types Supported
 
----
-
-## Evaluation Summary
-
-See **[EVALUATION_REPORT.md](EVALUATION_REPORT.md)** for the full evaluation with per-entity-type precision/recall/F1 scores, concrete false positive/negative analysis, and honest methodology disclosure.
-
-**Quick numbers** (18-span hand-labeled sample from the real prospectus):
-
-| Metric | Value |
-|--------|-------|
-| Precision (micro) | 100.0% |
-| Recall (micro) | 94.4% |
-| **F1 (micro)** | **97.1%** |
-| Only miss | "Waterloo Industrial Park VI Private Limited" (genuine spaCy FN) |
-
-> **Honest caveat**: These metrics are on a small 18-span sample. Per-type scores of "100%" for EMAIL (1 span), PHONE (1 span), etc. reflect the tiny sample size, not a claim of perfection. The address-expansion heuristic was refined against this sample and hasn't been validated on additional documents. See the evaluation report for full methodology and limitations.
-
-### NER Bug Fixes (Before/After)
-During development on the real prospectus, we identified and fixed four specific NER failure modes — each diagnosed from a concrete error, not tuned by trial-and-error:
-1. **Multi-line Address Fragmentation**: Fixed `docx_reader` to join all paragraphs within a single table cell before detection, preventing multi-line addresses from being split into unrecognizable fragments.
-2. **Role-Label Name Evasion**: Added a deterministic regex fallback to catch names immediately following role titles (e.g., "Contact Person: Sarthak Malvadkar") which spaCy consistently missed in dense legal contexts.
-3. **Street Names as Companies**: Added negative filters for address-indicator terms (Road, Nagar, Business Centre) to prevent spaCy from misclassifying street names as `COMPANY_NAME` unless they have a valid legal suffix.
-4. **Address Span Expansion**: spaCy's NER only tagged small fragments of Indian postal addresses (like "Village Birdewadi") as location entities. Added a heuristic to expand these fragments outward into full addresses by searching the surrounding ±150-char text window for labels ("Registered Office:"), house numbers, and pincodes. Leading context words are trimmed so spans start cleanly at the actual address.
-
-**Progression**: ~75% F1 (baseline) → ~82% (after bugs 1-3) → **97.1%** (after bug 4 + GT typo fix). Each improvement came from fixing a real detection bug, not from adjusting the evaluation set or loosening matching criteria.
+| # | PII Type | Detection Strategy | Key Details |
+|---|---|---|---|
+| 1 | **Full Names** | spaCy NER (`PERSON`) | Aggressive role-based fallback regex + strict overlap resolution |
+| 2 | **Email Addresses** | Regex | Standard RFC 5322 pattern matching |
+| 3 | **Phone Numbers** | Regex (Indian Formats) | +91 formats, landlines, spaces/dashes handled |
+| 4 | **Company Names** | spaCy NER (`ORG`) | Legal abbreviations filtered (Ltd, Pvt) and contextual expansion |
+| 5 | **Physical Addresses** | spaCy NER + Heuristics | `GPE`/`LOC` tagging combined with ±150 char span-expansion window to capture PIN codes and Indian states |
+| 6 | **SSNs** | Regex | XXX-XX-XXXX format |
+| 7 | **Credit Card Numbers**| Regex + Luhn Checksum | 13-19 digit sequences mathematically validated to reject financial figures |
+| 8 | **Dates of Birth** | Context-Labeled Regex | Only fires when preceded by "DOB", "born on", "Date of Birth" |
+| 9 | **IP Addresses** | Regex | IPv4 validated 0-255 octets |
+| 10 | **PAN Numbers** | Regex + Checksum | 10-char alphanumeric Indian Permanent Account Number |
+| 11 | **CIN Numbers** | Regex + Checksum | 21-char Indian Corporate Identity Number |
 
 ---
 
-## Security Note
+## 🔌 How to Extend to a New PII Type
+
+Adding a new PII type requires **zero code changes to the pipeline**. Here's a worked example for adding **Passport Number** detection:
+
+### Step 1: Add to `config/entity_rules.yaml`
+
+```yaml
+  - name: PASSPORT
+    method: regex
+    enabled: true
+    confidence_threshold: 0.90
+    pattern: '[A-Z]{1}[0-9]{7}'
+    spacy_labels: null
+    validator: null
+    fake_generator: "custom:fake_passport"
+    description: "Indian passport number (1 letter + 7 digits)"
+```
+
+### Step 2: Add a regex pattern to `regex_detectors.py` (if needed)
+
+If the pattern in the YAML is simple, the existing `RegexDetector` handles it. For complex patterns with validators, add a method:
+
+```python
+_PASSPORT_PATTERN = re.compile(r"(?<![A-Z0-9])[A-Z]\d{7}(?![A-Z0-9])")
+
+def _detect_passports(self, text: str) -> list[DetectedEntity]:
+    entities = []
+    for match in self._PASSPORT_PATTERN.finditer(text):
+        entities.append(DetectedEntity(
+            text=match.group(), entity_type="PASSPORT",
+            start=match.start(), end=match.end(),
+            confidence=0.90, detector_name=self.name, validated=True,
+        ))
+    return entities
+```
+
+### Step 3: Add a fake generator to `faker_provider.py`
+
+```python
+def _fake_passport(self, original: str) -> str:
+    letter = self._rng.choice(string.ascii_uppercase)
+    digits = "".join(str(self._rng.randint(0, 9)) for _ in range(7))
+    return f"{letter}{digits}"
+```
+
+### Step 4: Add tests
+
+```python
+def test_valid_passport(self, detector):
+    entities = detector.detect("Passport: J1234567")
+    assert len(entities) == 1
+    assert entities[0].entity_type == "PASSPORT"
+```
+
+That's it. No changes to the pipeline, CLI, writer, or any other module.
+
+---
+
+## ⭐ Stretch Features Implemented
+
+1. **Confidence scoring + review flags** — Low-confidence NER detections (below 0.75) are redacted but also logged to `data/output/low_confidence_review.csv` so a human reviewer knows where to double-check. This shows awareness that no PII tool is 100% automatable in production.
+2. **Structured JSON redaction report** — Each run produces `data/output/redaction_run_report.json` with entity counts, types, run duration, and detector metadata — suitable for feeding into a monitoring dashboard. Signals that we think of this as a pipeline component, not a one-off script.
+
+---
+
+## 🔒 Security Note
 
 > ⚠️ **The `entity_map.json` file maps fake values back to real PII and must NEVER be committed to version control or shared outside your organization.**
 
@@ -406,14 +371,6 @@ If the entity map leaks, the pseudonymization is fully reversible, defeating the
 
 ---
 
-## Stretch Features Implemented
-
-1. **Confidence scoring + review flags** — Low-confidence NER detections (below 0.75) are redacted but also logged to `data/output/low_confidence_review.csv` so a human reviewer knows where to double-check. This shows awareness that no PII tool is 100% automatable in production.
-
-2. **Structured JSON redaction report** — Each run produces `data/output/redaction_run_report.json` with entity counts, types, run duration, and detector metadata — suitable for feeding into a monitoring dashboard. Signals that we think of this as a pipeline component, not a one-off script.
-
----
-
-## License
+## 📜 License
 
 MIT
