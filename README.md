@@ -87,7 +87,7 @@ Our tool maps each character offset to its specific XML run using `RunInfo`. Whe
 
 ## 📈 Evaluation Summary
 
-See **[EVALUATION_REPORT.md](EVALUATION_REPORT.md)** for the full evaluation with per-entity-type precision/recall/F1 scores, concrete false positive/negative analysis, and honest methodology disclosure.
+See **[EVALUATION_REPORT.md](EVALUATION_REPORT.md)** (or download the **[Word Document Version](data/output/EVALUATION_REPORT_ANKANBASU.docx)**) for the full evaluation with per-entity-type precision/recall/F1 scores, concrete false positive/negative analysis, and honest methodology disclosure.
 
 ### Ground Truth Construction
 Ground truth was manually annotated from representative PII-dense sections of the Red Herring Prospectus (covering front matter, definitions, board of directors, auditors, general information, and bankers). This captures the dense contact/management sections where PII heavily clusters.
