@@ -48,3 +48,10 @@ ignore = ["E501"]
 testpaths = ["tests"]
 pythonpath = ["src"]
 addopts = "-v --tb=short"
+
+[tool.coverage.run]
+omit = [
+    "src/pii_redactor/cli.py",
+    "src/pii_redactor/__main__.py",
+    "src/pii_redactor/evaluation/*",
+]
