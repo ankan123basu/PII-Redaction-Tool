@@ -211,7 +211,7 @@ class EntityMap:
             logger.warning("Entity map file not found: %s", input_path)
             return
 
-        with open(input_path, "r", encoding="utf-8") as f:
+        with open(input_path, encoding="utf-8") as f:
             serializable = json.load(f)
 
         for key_str, entry in serializable.items():

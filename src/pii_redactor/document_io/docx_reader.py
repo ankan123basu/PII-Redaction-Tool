@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -31,7 +31,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class LocationType(str, Enum):
+class LocationType(StrEnum):
     """Where in the document a text segment was found."""
 
     PARAGRAPH = "paragraph"
@@ -326,7 +326,7 @@ class DocxReader:
         current_offset = 0
         first_paragraph = None
 
-        for para_idx, para in enumerate(paragraphs):
+        for _para_idx, para in enumerate(paragraphs):
             para_text_parts: list[str] = []
 
             for run_idx, run in enumerate(para.runs):

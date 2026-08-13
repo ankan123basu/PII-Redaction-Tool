@@ -19,7 +19,6 @@ by merging affected runs and redistributing text.
 
 from __future__ import annotations
 
-import copy
 import logging
 from dataclasses import dataclass
 from pathlib import Path
@@ -27,7 +26,7 @@ from pathlib import Path
 from docx import Document
 from docx.text.paragraph import Paragraph
 
-from pii_redactor.document_io.docx_reader import TextSegment, RunInfo
+from pii_redactor.document_io.docx_reader import RunInfo, TextSegment
 
 logger = logging.getLogger(__name__)
 
@@ -231,10 +230,9 @@ class DocxWriter:
 
         # Clear middle and last runs
         for ri in affected_runs[1:]:
-            try:
+            import contextlib
+            with contextlib.suppress(IndexError):
                 runs[ri.run_index].text = ""
-            except IndexError:
-                pass
 
         return True
 

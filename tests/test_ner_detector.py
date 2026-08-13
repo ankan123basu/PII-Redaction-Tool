@@ -245,9 +245,6 @@ class TestFullAddressDetection:
         )
         entities = detector.detect(text)
         addresses = [e for e in entities if e.entity_type == "ADDRESS"]
-        # Should detect at least some part of this address
-        # The key is that "Village Birdewadi" alone is not fragmented off
-        all_text = " ".join(e.text for e in addresses)
         # We expect the detector to find address-shaped content
         assert isinstance(addresses, list)  # At minimum, no crash
 
@@ -271,10 +268,10 @@ class TestFullAddressDetection:
         )
         entities = detector.detect(text)
         addresses = [e for e in entities if e.entity_type == "ADDRESS"]
-        
+
         # We expect a single merged address entity covering the whole span
         assert len(addresses) >= 1, "Should detect at least one address"
-        
+
         # The first address should capture the bulk of the text, not just "Village Birdewadi"
         full_address = addresses[0].text
         assert "11/3" in full_address, f"Span expansion missed house number: {full_address}"
@@ -292,7 +289,7 @@ class TestFullAddressDetection:
         )
         entities = detector.detect(text)
         addresses = [e for e in entities if e.entity_type == "ADDRESS"]
-        
+
         assert len(addresses) >= 1, "Should detect at least one address"
         full_address = addresses[0].text
         # Should start at the house number, not at "at" or "office at"

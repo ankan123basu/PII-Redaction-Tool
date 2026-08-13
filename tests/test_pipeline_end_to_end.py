@@ -20,7 +20,6 @@ from pii_redactor.detectors.base import DetectedEntity
 from pii_redactor.document_io.docx_reader import DocxReader
 from pii_redactor.pipeline import RedactionPipeline, resolve_overlaps
 
-
 FIXTURE_DIR = Path(__file__).parent / "fixtures"
 SAMPLE_DOCX = FIXTURE_DIR / "sample_input.docx"
 
@@ -187,7 +186,7 @@ class TestPipelineEndToEnd:
             report_path = Path(tmpdir) / "report.json"
 
             pipeline = RedactionPipeline(seed=42)
-            stats = pipeline.run(
+            pipeline.run(
                 input_path=SAMPLE_DOCX,
                 output_path=output_path,
                 entity_map_path=entity_map_path,

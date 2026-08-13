@@ -20,7 +20,7 @@ import logging
 import re
 from typing import Any
 
-from pii_redactor.detectors.base import Detector, DetectedEntity
+from pii_redactor.detectors.base import DetectedEntity, Detector
 
 logger = logging.getLogger(__name__)
 
@@ -145,13 +145,13 @@ class NERDetector(Detector):
         r"(?:^|,\s*)(?:\d+[/,\-]\s*|Plot\s+(?:No\.?\s*)?\d|Tower\s+\d|Floor\s+\d|\d+\s*,)",
         re.IGNORECASE,
     )
-    
+
     # Patterns for address span expansion (Bug 4 fix)
     _ADDRESS_LABEL_PATTERN = re.compile(
         r"(?:Registered\s+Office|Corporate\s+Office|Address|Registered\s+office\s+of\s+the\s+Company)\s*:?\s*",
         re.IGNORECASE,
     )
-    
+
     _HOUSE_NUMBER_PATTERN = re.compile(
         r"\b(?:\d+[-/]\d+|Plot\s+No\.?\s*\d+|H\.?No\.?\s*\d+|Block\s+No\.?\s*\d+|Flat\s+No\.?\s*\d+|Shop\s+No\.?\s*\d+|Office\s+No\.?\s*\d+|Unit\s+No\.?\s*\d+)\b",
         re.IGNORECASE,
@@ -229,8 +229,8 @@ class NERDetector(Detector):
         # Pre-collect all location entities to expand them into full addresses
         if "ADDRESS" in self._enabled_types:
             raw_address_ents = [
-                (ent.start_char, ent.end_char) 
-                for ent in doc.ents 
+                (ent.start_char, ent.end_char)
+                for ent in doc.ents
                 if self._map_spacy_label(ent.label_) == "ADDRESS"
             ]
             expanded_address_spans = self._expand_and_merge_addresses(text, raw_address_ents)
@@ -258,7 +258,7 @@ class NERDetector(Detector):
             span_text = text[start:end].strip()
             if not span_text:
                 continue
-                
+
             if is_expanded:
                 # If we confidently expanded it via heuristics, bypass normal strict filtering
                 # (which might reject it if it looks weird, but our heuristics are strong)
@@ -514,18 +514,9 @@ class NERDetector(Detector):
         # Reject standalone country/state/city names — they appear hundreds
         # of times in legal documents and are not PII in isolation
         lower = cleaned.lower()
-        _GEO_STOPLIST = {
+        _geo_stoplist = {
             # Countries
             "india", "usa", "us", "uk", "united states", "united kingdom",
-            "sweden", "germany", "france", "china", "japan", "singapore",
-            # Indian states
-            "maharashtra", "karnataka", "tamil nadu", "telangana",
-            "gujarat", "rajasthan", "madhya pradesh", "uttar pradesh",
-            "west bengal", "andhra pradesh", "kerala", "punjab",
-            "haryana", "goa", "odisha", "bihar", "jharkhand",
-            "chhattisgarh", "uttarakhand", "himachal pradesh",
-            "jammu and kashmir", "assam", "nagaland",
-            # Major cities (standalone, not as part of an address)
             "mumbai", "delhi", "bangalore", "bengaluru", "chennai",
             "hyderabad", "kolkata", "pune", "ahmedabad", "jaipur",
             "lucknow", "bhopal", "chandigarh", "patna", "noida",
@@ -534,7 +525,7 @@ class NERDetector(Detector):
             # Generic location references
             "registered office", "corporate office", "head office",
         }
-        if lower in _GEO_STOPLIST:
+        if lower in _geo_stoplist:
             logger.debug("Rejected ADDRESS (geo stoplist): '%s'", cleaned)
             return None
 
@@ -635,38 +626,38 @@ class NERDetector(Detector):
         self, text: str, raw_address_ents: list[tuple[int, int]]
     ) -> list[tuple[int, int, bool]]:
         """Expand raw location spans into full addresses based on text cues.
-        
+
         Returns a list of (start, end, is_expanded) tuples representing the
         merged and expanded addresses.
         """
         if not raw_address_ents:
             return []
-            
+
         expanded_spans = []
-        
+
         for start, end in raw_address_ents:
             window_start = max(0, start - 150)
             window_end = min(len(text), end + 150)
-            
+
             new_start = start
             new_end = end
             is_expanded = False
-            
+
             prefix = text[window_start:start]
             suffix = text[end:window_end]
-            
+
             # 1. Expand backwards to address label and forwards to punctuation
             label_matches = list(self._ADDRESS_LABEL_PATTERN.finditer(prefix))
             if label_matches:
                 last_match = label_matches[-1]
                 new_start = window_start + last_match.end()
                 is_expanded = True
-                
+
                 # Expand end to next sentence-ending punctuation
                 match = re.search(r'[;.]+(?:\s|$)', suffix)
                 if match:
                     new_end = end + match.start()
-                    
+
             # 2. Expand forwards to PIN code (if not already covered)
             pin_matches = list(self._PINCODE_PATTERN.finditer(suffix))
             if pin_matches:
@@ -675,7 +666,7 @@ class NERDetector(Detector):
                 if pin_end > new_end:
                     new_end = pin_end
                     is_expanded = True
-                    
+
                     # Capture state/country after pin (up to 30 chars, usually stops at punctuation)
                     after_pin = text[new_end:new_end + 30]
                     match = re.search(r'^[\s,]*[A-Za-z\s]+(?:,[\sA-Za-z\s]+)?', after_pin)
@@ -710,16 +701,16 @@ class NERDetector(Detector):
                     remaining = span_text[trim_match.end():]
                     if remaining and (remaining[0].isdigit() or re.match(r'^(?:Plot|H\.?No|Block|Flat|Shop|Office|Unit)\b', remaining, re.IGNORECASE)):
                         new_start += trim_match.end()
-                        
+
             expanded_spans.append((new_start, new_end, is_expanded))
-            
+
         # Merge overlapping or adjacent spans to prevent double-counting
         expanded_spans.sort()
         merged = [expanded_spans[0]]
-        
+
         for current_start, current_end, current_exp in expanded_spans[1:]:
             last_start, last_end, last_exp = merged[-1]
-            
+
             # Merge if overlapping or separated by just a comma/space
             between = text[last_end:current_start]
             if current_start <= last_end or re.match(r'^[\s,;]*$', between):
@@ -728,5 +719,5 @@ class NERDetector(Detector):
                 merged[-1] = (new_start, new_end, last_exp or current_exp)
             else:
                 merged.append((current_start, current_end, current_exp))
-                
+
         return merged

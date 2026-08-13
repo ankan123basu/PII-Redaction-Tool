@@ -14,13 +14,12 @@ import pytest
 from pii_redactor.detectors.regex_detectors import RegexDetector
 from pii_redactor.validators.checksum import (
     luhn_check,
-    validate_phone,
-    validate_ssn,
-    validate_pan,
     validate_cin,
     validate_ipv4,
+    validate_pan,
+    validate_phone,
+    validate_ssn,
 )
-
 
 # ===========================================================================
 # Validator unit tests

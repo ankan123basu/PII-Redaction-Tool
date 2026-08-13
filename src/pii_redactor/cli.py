@@ -16,16 +16,15 @@ to stdout using rich for production-grade formatting.
 from __future__ import annotations
 
 import logging
+import os
 import sys
 from pathlib import Path
-
-import os
 
 import click
 from rich.console import Console
 from rich.logging import RichHandler
-from rich.table import Table
 from rich.panel import Panel
+from rich.table import Table
 
 from pii_redactor.pipeline import RedactionPipeline, RedactionStats
 

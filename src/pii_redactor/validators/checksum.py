@@ -87,10 +87,7 @@ def validate_ssn(ssn: str) -> bool:
     if area == 0 or area == 666 or area >= 900:
         return False
     # All-zero groups are invalid
-    if group == 0 or serial == 0:
-        return False
-
-    return True
+    return not (group == 0 or serial == 0)
 
 
 def validate_pan(pan: str) -> bool:
@@ -159,7 +156,4 @@ def validate_ipv4(ip: str) -> bool:
             return False
 
     # Reject if first octet is > 3 digits (version numbers like 2018.x.x.x)
-    if len(parts[0]) > 3:
-        return False
-
-    return True
+    return not (len(parts[0]) > 3)

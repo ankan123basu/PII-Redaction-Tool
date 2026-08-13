@@ -116,8 +116,8 @@ class ReportGenerator:
             f"The pipeline produced **{len(predictions)} predicted spans**."
         )
         lines.append("")
-        lines.append(f"| Metric | Micro-averaged | Macro-averaged |")
-        lines.append(f"|--------|---------------|----------------|")
+        lines.append("| Metric | Micro-averaged | Macro-averaged |")
+        lines.append("|--------|---------------|----------------|")
         lines.append(
             f"| **Precision** | {result.micro_precision:.1%} | {result.macro_precision:.1%} |"
         )

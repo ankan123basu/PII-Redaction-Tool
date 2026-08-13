@@ -18,7 +18,6 @@ import pytest
 from pii_redactor.pseudonymizer.entity_map import EntityMap
 from pii_redactor.pseudonymizer.faker_provider import FakerProvider
 
-
 # ===========================================================================
 # EntityMap tests
 # ===========================================================================
@@ -59,8 +58,8 @@ class TestEntityMapConsistency:
 
     def test_no_fuzzy_match_across_types(self, entity_map, provider):
         """Fuzzy matching should NOT merge across entity types."""
-        fake_name = entity_map.get_or_create("Kushal Hegde", "FULL_NAME", provider.generate)
-        fake_company = entity_map.get_or_create("Kushal Hegde", "COMPANY_NAME", provider.generate)
+        entity_map.get_or_create("Kushal Hegde", "FULL_NAME", provider.generate)
+        entity_map.get_or_create("Kushal Hegde", "COMPANY_NAME", provider.generate)
         # These could be the same or different — the key point is they're tracked separately
         assert entity_map.total_entries == 2
 
@@ -85,10 +84,10 @@ class TestEntityMapPersistence:
     def provider(self):
         return FakerProvider(seed=42)
 
-    def test_save_and_load(self, provider):
+    def test_entity_map_serialization(self, provider):
         """Entity map should survive a save/load round-trip."""
         map1 = EntityMap()
-        fake = map1.get_or_create("Kushal Hegde", "FULL_NAME", provider.generate)
+        map1.get_or_create("Kushal Hegde", "FULL_NAME", provider.generate)
 
         with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             temp_path = f.name
@@ -114,7 +113,7 @@ class TestEntityMapPersistence:
 
         entity_map.save(temp_path)
 
-        with open(temp_path, "r") as f:
+        with open(temp_path) as f:
             data = json.load(f)
 
         assert len(data) == 1

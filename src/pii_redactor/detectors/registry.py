@@ -18,9 +18,9 @@ from typing import Any
 
 import yaml
 
-from pii_redactor.detectors.base import Detector, DetectedEntity
-from pii_redactor.detectors.regex_detectors import RegexDetector
+from pii_redactor.detectors.base import DetectedEntity, Detector
 from pii_redactor.detectors.ner_detector import NERDetector
+from pii_redactor.detectors.regex_detectors import RegexDetector
 
 logger = logging.getLogger(__name__)
 
@@ -60,7 +60,7 @@ class DetectorRegistry:
             self.entity_rules = []
             return
 
-        with open(self.config_path, "r", encoding="utf-8") as f:
+        with open(self.config_path, encoding="utf-8") as f:
             self.config = yaml.safe_load(f) or {}
 
         self.entity_rules = self.config.get("entity_types", [])

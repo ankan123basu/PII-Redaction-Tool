@@ -14,18 +14,18 @@ hundreds of unrelated dates in a legal/financial document.
 
 from __future__ import annotations
 
-import re
 import logging
-from typing import Callable
+import re
+from collections.abc import Callable
 
-from pii_redactor.detectors.base import Detector, DetectedEntity
+from pii_redactor.detectors.base import DetectedEntity, Detector
 from pii_redactor.validators.checksum import (
     luhn_check,
-    validate_phone,
-    validate_ssn,
-    validate_pan,
     validate_cin,
     validate_ipv4,
+    validate_pan,
+    validate_phone,
+    validate_ssn,
 )
 
 logger = logging.getLogger(__name__)

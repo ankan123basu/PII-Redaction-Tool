@@ -215,7 +215,6 @@ class FakerProvider:
         fake_cc = self._faker.credit_card_number()
 
         # Match format: spaces, dashes, or no separators
-        cleaned_original = re.sub(r"[\s\-]", "", original)
         if " " in original:
             # Group by 4s with spaces
             return " ".join(fake_cc[i:i+4] for i in range(0, len(fake_cc), 4))
